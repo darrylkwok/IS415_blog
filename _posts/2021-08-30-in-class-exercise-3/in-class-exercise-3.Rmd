@@ -1,5 +1,5 @@
 ---
-title: "in-class-exercise-3"
+title: "In Class Exercise 3"
 description: |
   A short description of the post.
 author:
