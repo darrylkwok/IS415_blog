@@ -1,0 +1,43 @@
+---
+title: "Hands-on Exercise 4"
+description: |
+  A short description of the post.
+author:
+  - name: Darryl Kwok
+    url: https://example.com/darrylkwok
+date: 09-05-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r}
+packages = c('maptools', 'sf', 'raster','spatstat', 'tmap')
+for (p in packages){
+if(!require(p, character.only = T)){
+install.packages(p)
+}
+library(p,character.only = T)
+}
+```
+
+#Importing the spatial data
+```{r echo=TRUE}
+childcare_sf <- st_read("data/geospatial/child-care-services-geojson.geojson") %>%
+  st_transform(crs = 3414)
+```
+```{r echo=TRUE}
+sg_sf <- st_read(dsn = "data/geospatial", layer="CostalOutline")
+```
+
+```{r echo=TRUE}
+mpsz_sf <- st_read(dsn = "data/geospatial", 
+                layer = "MP14_SUBZONE_WEB_PL")
+```
+

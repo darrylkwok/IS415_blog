@@ -1,0 +1,98 @@
+---
+title: "In-Class Exercise 4"
+description: |
+  A short description of the post.
+author:
+  - name: Darryl Kwok
+    url: https://example.com/darrylkwok
+date: 09-06-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Importing and Installing all required Packages
+- sf is mainly for importing geospatial data
+- raster is for handling raster-based geospatial data
+
+```{r}
+packages = c('maptools', 'sf', 'raster','spatstat', 'tmap', 'tidyverse')
+for (p in packages){
+  if(!require(p, character.only = T)){
+  install.packages(p)
+  }
+library(p,character.only = T)
+}
+```
+
+## Importing Geospatial Data
+
+```{r}
+sg_sf <- st_read(dsn = "data/shapefile", layer="CostalOutline")
+mpsz_sf <- st_read(dsn = "data/shapefile", layer = "MP14_SUBZONE_WEB_PL")
+```
+
+## Importing Aspatial Data
+
+This childcare.rds is retreived from the OneMap API.
+However, the childcare data in hands-on exercise 4 is retrieved from data.gov.sg and the data format is in geojson format. Compare the differences and you will realise that geojson truncates the data and made the data hard to interpret.
+```{r}
+childcare <- read_rds("data/rds/childcare.rds")
+CHAS <- read_rds("data/rds/CHAS.rds")
+```
+
+### Converting from aspatial to geospatial
+
+Set crs to 3414 based on Singapore's National Projection System
+```{r}
+CHAS_sf <- st_as_sf(CHAS, coords=c("X_COORDINATE","Y_COORDINATE"),
+                    crs=3414)
+```
+
+Since we are using Longtitude and Latitude, the correct crs is 4326.
+Therefore after calling the st_as_sf() function, we perform a mathematical transformation by using st_transform() to transform the geometrical properties to 3414 projection
+```{r}
+childcare$Lat <- as.numeric(childcare$Lat)
+childcare$Lng <- as.numeric(childcare$Lng)
+childcare_sf <- st_as_sf(childcare, coords=c("Lng", "Lat"), crs=4326) %>% 
+  st_transform(crs = 3414)
+```
+
+## Geospatial Data Wrangling
+
+### Converting from sf to Spatial Classes
+```{r}
+childcare <- as_Spatial(childcare_sf)
+CHAS <- as_Spatial(CHAS_sf)
+mpsz <- as_Spatial(mpsz_sf)
+sg <- as_Spatial(sg_sf)
+```
+
+### Converting from Spatial classes to sp format
+This will remove all the other columns, and only keep the geometric features and projection
+```{r}
+childcare_sp <- as(childcare, "SpatialPoints")
+CHAS_sp <- as(CHAS, "SpatialPoints")
+sg_sp <- as(sg, "SpatialPolygons")
+```
+
+### Converting from sp to spatstat ppp format
+After you convert it to ppp format, you will lose the projections, so if you convert to raster, you need to define the projections
+```{r}
+childcare_ppp <- as(childcare_sp, "ppp")
+CHAS_ppp <- as(CHAS_sp, "ppp")
+```
+
+
+
+
+
+
+
+
+
