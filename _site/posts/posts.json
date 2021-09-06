@@ -1,5 +1,22 @@
 [
   {
+    "path": "posts/2021-09-06-in-class-exercise-4/",
+    "title": "In-Class Exercise 4",
+    "description": "A short description of the post.",
+    "author": [
+      {
+        "name": "Darryl Kwok",
+        "url": "https://example.com/darrylkwok"
+      }
+    ],
+    "date": "2021-09-06",
+    "categories": [],
+    "contents": "\r\nImporting and Installing all required Packages\r\nsf is mainly for importing geospatial data\r\nraster is for handling raster-based geospatial data\r\n\r\n\r\n\r\nImporting Geospatial Data\r\n\r\nReading layer `CostalOutline' from data source \r\n  `C:\\darrylkwok\\IS415_blog\\_posts\\2021-09-06-in-class-exercise-4\\data\\shapefile' \r\n  using driver `ESRI Shapefile'\r\nSimple feature collection with 60 features and 4 fields\r\nGeometry type: POLYGON\r\nDimension:     XY\r\nBounding box:  xmin: 2663.926 ymin: 16357.98 xmax: 56047.79 ymax: 50244.03\r\nProjected CRS: SVY21\r\nReading layer `MP14_SUBZONE_WEB_PL' from data source \r\n  `C:\\darrylkwok\\IS415_blog\\_posts\\2021-09-06-in-class-exercise-4\\data\\shapefile' \r\n  using driver `ESRI Shapefile'\r\nSimple feature collection with 323 features and 15 fields\r\nGeometry type: MULTIPOLYGON\r\nDimension:     XY\r\nBounding box:  xmin: 2667.538 ymin: 15748.72 xmax: 56396.44 ymax: 50256.33\r\nProjected CRS: SVY21\r\n\r\nImporting Aspatial Data\r\nThis childcare.rds is retreived from the OneMap API. However, the childcare data in hands-on exercise 4 is retrieved from data.gov.sg and the data format is in geojson format. Compare the differences and you will realise that geojson truncates the data and made the data hard to interpret.\r\n\r\n\r\n\r\nConverting from aspatial to geospatial\r\nSet crs to 3414 based on Singapore’s National Projection System\r\n\r\n\r\n\r\nSince we are using Longtitude and Latitude, the correct crs is 4326. Therefore after calling the st_as_sf() function, we perform a mathematical transformation by using st_transform() to transform the geometrical properties to 3414 projection\r\n\r\n\r\n\r\nGeospatial Data Wrangling\r\nConverting from sf to Spatial Classes\r\n\r\n\r\n\r\nConverting from Spatial classes to sp format\r\nThis will remove all the other columns, and only keep the geometric features and projection\r\n\r\n\r\n\r\nConverting from sp to spatstat ppp format\r\nAfter you convert it to ppp format, you will lose the projections, so if you convert to raster, you need to define the projections\r\n\r\n\r\n\r\n\r\n\r\n\r\n",
+    "preview": {},
+    "last_modified": "2021-09-06T11:27:54+08:00",
+    "input_file": "in-class-exercise-4.knit.md"
+  },
+  {
     "path": "posts/2021-08-30-hands-on-exercise-2/",
     "title": "Hands-on Exercise 2",
     "description": "A short description of the post.",
