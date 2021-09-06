@@ -1,0 +1,248 @@
+---
+title: "Take-Home Exercise 1"
+description: |
+  A short description of the post.
+author:
+  - name: Darryl Kwok
+    url: https://example.com/darrylkwok
+date: 09-06-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Install and load neccessary Packages
+```{r}
+packages = c('sf', 'tmap', 'tidyverse', 'readxl')
+for (p in packages){
+  if(!require(p, character.only = T)){
+    install.packages(p)
+  }
+  library(p,character.only = T)
+}
+```
+
+## Data 
+### Read in Geospatial Data
+``` {r echo=TRUE}
+jakarta_geo = st_read(dsn="data/geospatial", layer="BATAS_DESA_DESEMBER_2019_DUKCAPIL_DKI_JAKARTA")
+```
+### Transforming Projection of DKI Jakarta to DGN95
+```{r echo=TRUE}
+jakarta_geo <- st_transform(jakarta_geo, crs=23837)
+
+st_geometry(jakarta_geo)
+```
+
+### Select the first 9 columns of the Geospatial Data
+```{r echo=TRUE}
+jakarta_geo <- jakarta_geo[0:9]
+
+jakarta_geo
+```
+```{r echo=TRUE}
+jakarta_geo <- jakarta_geo[0:9]
+
+jakarta_geo
+```
+
+### Visualize the islands that are in the Geospatial File
+```{r echo=TRUE}
+tmap_mode("view")
+tm_shape(jakarta_geo) + 
+  tm_polygons()
+```
+
+###Remove the outer islands
+```{r echo=TRUE}
+tmap_mode("plot")
+jakarta_geo <- jakarta_geo %>%
+  filter(grepl("JAKARTA", KAB_KOTA, fixed=TRUE))
+
+tm_shape(jakarta_geo) + 
+  tm_polygons()
+
+tmap_mode("view")
+```
+
+
+### Read in Aspatial Data
+### Create a function to preprocess each excel file
+
+This function will read in the excel file, removes the duplicated columns and select the 8 columns that are required which includes a new month column that was created
+
+```{r echo=TRUE, eval=FALSE}
+aspatial_function <- function (xlsx_filepath) {
+  xlsx_file <- read_excel(xlsx_filepath, .name_repair="minimal") 
+  
+  xlsx_file <- xlsx_file[-c(1), !duplicated(colnames(xlsx_file), fromLast=TRUE)] %>% 
+    mutate(`month` = substr(xlsx_filepath, gregexpr(pattern="Corona", xlsx_filepath)[[1]] + 11, gregexpr(pattern="Pukul", xlsx_filepath)[[1]] - 2)) %>%
+    select(`ID_KEL`, `Nama_provinsi`,
+           `nama_kota`, `nama_kecamatan`,
+           `nama_kelurahan`, `POSITIF`, `Meninggal`, `month`)
+  
+  return(xlsx_file)
+}
+```
+
+### Read in all the excel files and process them through the created function
+```{r echo=TRUE, eval=FALSE}
+setwd('data/aspatial')
+file.list <- list.files(pattern='*.xlsx')
+
+jakarta_asp <- data.frame(Date=as.Date(character()),
+                 File=character(), 
+                 User=character(), 
+                 stringsAsFactors=FALSE) 
+
+for (each_file in file.list) {
+  jakarta_asp <- rbind(jakarta_asp, aspatial_function(each_file))
+}
+
+jakarta_asp
+```
+
+###Replace "P." to "Pulau"
+```{r echo=TRUE, eval=FALSE}
+jakarta_asp$nama_kelurahan <- gsub("P\\.", "PULAU", jakarta_asp$nama_kelurahan)
+```
+
+### Save the Aspatial file as RDS
+```{r echo=TRUE, eval=FALSE}
+jakarta_asp_rds <- write_rds(jakarta_asp, "data/rds/jakarta_asp.rds")
+```
+
+### Read the RDS Aspatial File
+```{r echo=TRUE}
+jakarta_asp <- read_rds("data/rds/jakarta_asp.rds")
+
+```
+
+### Prepare data to have cummulative monthly covid data in each column
+```{r echo=TRUE}
+jakarta_asp <- jakarta_asp %>%
+  group_by(ID_KEL, Nama_provinsi, nama_kota, nama_kecamatan, nama_kelurahan, month) %>%
+  summarise(`MENINGGAL` = sum(`Meninggal`), `POSITIF` = sum(`POSITIF`)) %>%
+  ungroup() %>%
+  pivot_wider(names_from=month, values_from=c(POSITIF, MENINGGAL))
+  
+jakarta_asp
+```
+
+### Convert all NA values to 0
+```{r echo=TRUE}
+jakarta_asp[is.na(jakarta_asp)] <- 0
+```
+
+### Join the Geospatial and Aspatial Data
+```{r echo=TRUE}
+jakarta_full <- right_join(jakarta_asp, jakarta_geo, by= 
+                            c("ID_KEL" = "KODE_DESA",         
+                              "Nama_provinsi" = "PROVINSI",
+                              "nama_kota" = "KAB_KOTA" ,
+                              "nama_kecamatan" = "KECAMATAN",
+                              "nama_kelurahan" = "DESA_KELUR"))
+
+```
+
+###Perform Calculation to Generate Total Deaths and Total Positive for each area
+```{r echo=TRUE}
+jakarta_full <- jakarta_full %>%
+  mutate(`TOTAL POSITIF` = rowSums(.[6:22])) %>%
+  mutate(`TOTAL MENINGGAL` = rowSums(.[23:39]))
+```
+
+### Perform calculation to Generate the Cumulative confirmed cases per 1000 and death rate
+The cumulative confirmed cases per 1000 calculates the number of confirmed cases per 1000 people. The death rate calculates the ratio of deaths to the number of confirmed cases
+```{r echo=TRUE}
+jakarta_full_rates <- jakarta_full 
+
+jakarta_full_rates[23:39] <- jakarta_full_rates[23:39] / (jakarta_full_rates[6:22]/1000)
+jakarta_full_rates[6:22] <- jakarta_full_rates[6:22] / (jakarta_full_rates$JUMLAH_PEN / 1000)
+
+```
+
+### Compute the COnfirmed Cases Rate and Death Rate for 5 months interval for each Area
+```{r echo=TRUE}
+first_quarter <- c("Maret 2020", "April 2020", "MEI 2020", "Juni 2020", "Juli 2020")
+second_quarter <- c("Agustus 2020", "September 2020", "Oktober 2020", "November 2020", "Desember 2020")
+third_quarter <- c("Januari 2021", "Februari 2021", "Maret 2021", "April 2021", "Mei 2021")
+fourth_quarter <- c("Juni 2021", "Juli 2021")
+
+all_quarters = list(first_quarter, second_quarter, third_quarter, fourth_quarter)
+
+jakarta_full_rates_qtr <- jakarta_full_rates %>%
+  mutate(`First Quarter Positif` = select(., "POSITIF_Maret 2020", "POSITIF_April 2020", "POSITIF_MEI 2020", "POSITIF_Juni 2020", "POSITIF_Juli 2020") %>% rowSums()) %>%
+  mutate(`Second Quarter Positif` = select(.,"POSITIF_Agustus 2020", "POSITIF_September 2020", "POSITIF_Oktober 2020", "POSITIF_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
+  mutate(`Third Quarter Positif` = select(., "POSITIF_Januari 2021", "POSITIF_Februari 2021", "POSITIF_Maret 2021", "POSITIF_April 2021", "POSITIF_Mei 2021") %>% rowSums()) %>% 
+  mutate(`Fourth Quarter Positif` = select(., "POSITIF_Juni 2021", "POSITIF_Juli 2021") %>% rowSums()) %>%
+  mutate(`First Quarter Meninggal` = select(., "MENINGGAL_Maret 2020", "MENINGGAL_April 2020", "MENINGGAL_MEI 2020", "MENINGGAL_Juni 2020", "MENINGGAL_Juli 2020") %>% rowSums()) %>% 
+  mutate(`Second Quarter Meninggal` = select(.,"MENINGGAL_Agustus 2020", "MENINGGAL_September 2020", "MENINGGAL_Oktober 2020", "MENINGGAL_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
+  mutate(`Third Quarter Meninggal` = select(., "MENINGGAL_Januari 2021", "MENINGGAL_Februari 2021", "MENINGGAL_Maret 2021", "MENINGGAL_April 2021", "MENINGGAL_Mei 2021") %>% rowSums()) %>% 
+  mutate(`Fourth Quarter Meninggal` = select(., "MENINGGAL_Juni 2021", "MENINGGAL_Juli 2021") %>% rowSums()) %>%
+  select(`ID_KEL`, `Nama_provinsi`, `nama_kota`, `nama_kecamatan`, `First Quarter Positif`, `Second Quarter Positif`, `Third Quarter Positif`, `Fourth Quarter Positif`, `First Quarter Meninggal`, `Second Quarter Meninggal`, `Third Quarter Meninggal`, `Fourth Quarter Meninggal`, `geometry`)
+
+jakarta_full_rates_qtr[is.na(jakarta_full_rates_qtr)] <- 0
+```
+
+## Exploring the Geospatial Data
+### Convert R dataframe into sf object
+```{r echo=TRUE}
+jakarta_full <- st_as_sf(jakarta_full)
+jakarta_full_rates <- st_as_sf(jakarta_full_rates)
+jakarta_full_rates_qtr <- st_as_sf(jakarta_full_rates_qtr)
+```
+
+### Plot the Population, Positive Cases and Deaths Map
+```{r echo=TRUE}
+jakarta_full <- st_as_sf(jakarta_full)
+
+pop_map <- tm_shape(jakarta_full) +
+            tm_fill("JUMLAH_PEN") +
+            tm_borders(lwd=0.1, alpha = 1)
+
+positive_map <- tm_shape(jakarta_full) +
+                  tm_fill("TOTAL POSITIF") +
+                  tm_borders(lwd=0.1, alpha = 1)
+
+
+deaths_map <-tm_shape(jakarta_full) +
+                tm_fill("TOTAL MENINGGAL") +
+                tm_borders(lwd=0.1, alpha = 1)
+```
+
+### Visualise each of the maps side by side
+```{r echo=TRUE}
+tmap_mode("plot")
+
+tmap_arrange(pop_map, positive_map, deaths_map, ncol=3)
+```
+
+
+```{r}
+first_quarter <- tm_shape(jakarta_full_rates_qtr) +
+  tm_fill("First Quarter Positif") +
+  tm_borders(lwd=0.1, alpha = 1)
+
+second_quarter <- tm_shape(jakarta_full_rates_qtr) +
+  tm_fill("Second Quarter Positif") +
+  tm_borders(lwd=0.1, alpha = 1)
+
+
+third_quarter <- tm_shape(jakarta_full_rates_qtr) +
+  tm_fill("Third Quarter Positif") +
+  tm_borders(lwd=0.1, alpha = 1)
+
+
+fourth_quarter <- tm_shape(jakarta_full_rates_qtr) +
+  tm_fill("Fourth Quarter Positif") +
+  tm_borders(lwd=0.1, alpha = 1)
+
+
+tmap_arrange(first_quarter, second_quarter, third_quarter, fourth_quarter)
+```
