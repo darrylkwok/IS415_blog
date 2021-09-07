@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## Install and load neccessary Packages
 ```{r}
-packages = c('sf', 'tmap', 'tidyverse', 'readxl')
+packages = c('sf', 'tmap', 'tidyverse', 'readxl', 'raster', 'maptools', 'spatstat')
 for (p in packages){
   if(!require(p, character.only = T)){
     install.packages(p)
@@ -67,7 +67,6 @@ jakarta_geo <- jakarta_geo %>%
 tm_shape(jakarta_geo) + 
   tm_polygons()
 
-tmap_mode("view")
 ```
 
 
@@ -134,20 +133,22 @@ jakarta_asp <- jakarta_asp %>%
 jakarta_asp
 ```
 
-### Convert all NA values to 0
+### Check for any NA values
 ```{r echo=TRUE}
-jakarta_asp[is.na(jakarta_asp)] <- 0
+jakarta_asp[rowSums(is.na(jakarta_asp)) > 0, ]  
 ```
 
+
 ### Join the Geospatial and Aspatial Data
+We can only join by ID_KEL and KODE_DESA because there are many spelling discrepancies between the Aspatial Data and the Geospatial Data
 ```{r echo=TRUE}
 jakarta_full <- right_join(jakarta_asp, jakarta_geo, by= 
-                            c("ID_KEL" = "KODE_DESA",         
-                              "Nama_provinsi" = "PROVINSI",
-                              "nama_kota" = "KAB_KOTA" ,
-                              "nama_kecamatan" = "KECAMATAN",
-                              "nama_kelurahan" = "DESA_KELUR"))
+                            c("ID_KEL" = "KODE_DESA"))
+```
 
+### Check for missing values
+```{r echo=TRUE}
+jakarta_full[rowSums(is.na(jakarta_full)) > 0, ]  
 ```
 
 ###Perform Calculation to Generate Total Deaths and Total Positive for each area
@@ -155,8 +156,6 @@ jakarta_full <- right_join(jakarta_asp, jakarta_geo, by=
 jakarta_full <- jakarta_full %>%
   mutate(`TOTAL POSITIF` = rowSums(.[6:22])) %>%
   mutate(`TOTAL MENINGGAL` = rowSums(.[23:39]))
-
-jakarta_full[is.na(jakarta_full)] <- 0
 ```
 
 ### Perform calculation to Generate the Cumulative confirmed cases per 1000 and death rate
@@ -166,9 +165,12 @@ jakarta_full_rates <- jakarta_full
 
 jakarta_full_rates[23:39] <- jakarta_full_rates[23:39] / (jakarta_full_rates[6:22]/1000)
 jakarta_full_rates[6:22] <- jakarta_full_rates[6:22] / (jakarta_full_rates$JUMLAH_PEN / 1000)
+```
 
-jakarta_full_rates_a <- jakarta_full_rates %>%
-  drop_na()
+### Perform Calculation to derive the Relative Risk for each area
+```{r echo=TRUE}
+jakarta_full_rel_risk <- jakarta_full %>%
+  mutate(`REL_RISK` = (rowSums(.[23:39]) * 100) / (rowSums(.[23:39]) * jakarta_full$JUMLAH_PEN))
 ```
 
 ### Compute the COnfirmed Cases Rate and Death Rate for 5 months interval for each Area
@@ -181,26 +183,31 @@ fourth_quarter <- c("Juni 2021", "Juli 2021")
 all_quarters = list(first_quarter, second_quarter, third_quarter, fourth_quarter)
 
 jakarta_full_rates_qtr <- jakarta_full_rates %>%
-  mutate(`First Quarter Positif` = select(., "POSITIF_Maret 2020", "POSITIF_April 2020", "POSITIF_MEI 2020", "POSITIF_Juni 2020", "POSITIF_Juli 2020") %>% rowSums()) %>%
-  mutate(`Second Quarter Positif` = select(.,"POSITIF_Agustus 2020", "POSITIF_September 2020", "POSITIF_Oktober 2020", "POSITIF_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
-  mutate(`Third Quarter Positif` = select(., "POSITIF_Januari 2021", "POSITIF_Februari 2021", "POSITIF_Maret 2021", "POSITIF_April 2021", "POSITIF_Mei 2021") %>% rowSums()) %>% 
-  mutate(`Fourth Quarter Positif` = select(., "POSITIF_Juni 2021", "POSITIF_Juli 2021") %>% rowSums()) %>%
-  mutate(`First Quarter Meninggal` = select(., "MENINGGAL_Maret 2020", "MENINGGAL_April 2020", "MENINGGAL_MEI 2020", "MENINGGAL_Juni 2020", "MENINGGAL_Juli 2020") %>% rowSums()) %>% 
-  mutate(`Second Quarter Meninggal` = select(.,"MENINGGAL_Agustus 2020", "MENINGGAL_September 2020", "MENINGGAL_Oktober 2020", "MENINGGAL_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
-  mutate(`Third Quarter Meninggal` = select(., "MENINGGAL_Januari 2021", "MENINGGAL_Februari 2021", "MENINGGAL_Maret 2021", "MENINGGAL_April 2021", "MENINGGAL_Mei 2021") %>% rowSums()) %>% 
-  mutate(`Fourth Quarter Meninggal` = select(., "MENINGGAL_Juni 2021", "MENINGGAL_Juli 2021") %>% rowSums()) %>%
-  select(`ID_KEL`, `Nama_provinsi`, `nama_kota`, `nama_kecamatan`, `First Quarter Positif`, `Second Quarter Positif`, `Third Quarter Positif`, `Fourth Quarter Positif`, `First Quarter Meninggal`, `Second Quarter Meninggal`, `Third Quarter Meninggal`, `Fourth Quarter Meninggal`, `geometry`)
+  mutate(`First Quarter Positif` = dplyr::select(., "POSITIF_Maret 2020", "POSITIF_April 2020", "POSITIF_MEI 2020", "POSITIF_Juni 2020", "POSITIF_Juli 2020") %>% rowSums()) %>%
+  mutate(`Second Quarter Positif` = dplyr::select(.,"POSITIF_Agustus 2020", "POSITIF_September 2020", "POSITIF_Oktober 2020", "POSITIF_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
+  mutate(`Third Quarter Positif` = dplyr::select(., "POSITIF_Januari 2021", "POSITIF_Februari 2021", "POSITIF_Maret 2021", "POSITIF_April 2021", "POSITIF_Mei 2021") %>% rowSums()) %>% 
+  mutate(`Fourth Quarter Positif` = dplyr::select(., "POSITIF_Juni 2021", "POSITIF_Juli 2021") %>% rowSums()) %>%
+  mutate(`First Quarter Meninggal` = dplyr::select(., "MENINGGAL_Maret 2020", "MENINGGAL_April 2020", "MENINGGAL_MEI 2020", "MENINGGAL_Juni 2020", "MENINGGAL_Juli 2020") %>% rowSums()) %>% 
+  mutate(`Second Quarter Meninggal` = dplyr::select(.,"MENINGGAL_Agustus 2020", "MENINGGAL_September 2020", "MENINGGAL_Oktober 2020", "MENINGGAL_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
+  mutate(`Third Quarter Meninggal` = dplyr::select(., "MENINGGAL_Januari 2021", "MENINGGAL_Februari 2021", "MENINGGAL_Maret 2021", "MENINGGAL_April 2021", "MENINGGAL_Mei 2021") %>% rowSums()) %>% 
+  mutate(`Fourth Quarter Meninggal` = dplyr::select(., "MENINGGAL_Juni 2021", "MENINGGAL_Juli 2021") %>% rowSums()) %>%
+  dplyr::select(`ID_KEL`, `Nama_provinsi`, `nama_kota`, `nama_kecamatan`, `First Quarter Positif`, `Second Quarter Positif`, `Third Quarter Positif`, `Fourth Quarter Positif`, `First Quarter Meninggal`, `Second Quarter Meninggal`, `Third Quarter Meninggal`, `Fourth Quarter Meninggal`, `geometry`)
 
-jakarta_full_rates_qtr[is.na(jakarta_full_rates_qtr)] <- 0
+
 ```
+
+
 
 ## Exploring the Geospatial Data
 ### Convert R dataframe into sf object
 ```{r echo=TRUE}
 jakarta_full <- st_as_sf(jakarta_full)
 jakarta_full_rates <- st_as_sf(jakarta_full_rates)
-jakarta_full_rates_a <- st_as_sf(jakarta_full_rates_a)
 jakarta_full_rates_qtr <- st_as_sf(jakarta_full_rates_qtr)
+jakarta_full_rel_risk <- st_as_sf(jakarta_full_rel_risk)
+
+jakarta_full_rates[is.na(jakarta_full_rates)] <- 0
+jakarta_full_rates_qtr[is.na(jakarta_full_rates_qtr)] <- 0
 ```
 
 ### Create function to plot simple maps
@@ -234,21 +241,15 @@ tmap_arrange(pop_map, positive_map, deaths_map, ncol=3)
 
 ### Plot Positif Rate for all the months
 ```{r echo=TRUE}
-all_meninggal_cols <- c("MENINGGAL_Maret 2020", "MENINGGAL_April 2020", "MENINGGAL_MEI 2020", "MENINGGAL_Juni 2020", "MENINGGAL_Juli 2020", 
-                        "MENINGGAL_Agustus 2020", "MENINGGAL_September 2020", "MENINGGAL_Oktober 2020", "MENINGGAL_November 2020", "POSITIF_Desember 2020", 
-                        "MENINGGAL_Januari 2021", "MENINGGAL_Februari 2021", "MENINGGAL_Maret 2021", "MENINGGAL_April 2021", "MENINGGAL_Mei 2021", 
-                        "MENINGGAL_Juni 2021", "MENINGGAL_Juli 2021")
-
-
-tmap_arrange(simple_map_plot(jakarta_full_rates_a, "POSITIF_Maret 2020"), simple_map_plot(jakarta_full_rates_a, "POSITIF_April 2020"),
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_MEI 2020"), simple_map_plot(jakarta_full_rates_a, "POSITIF_Juni 2020"), 
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_Juli 2020"), simple_map_plot(jakarta_full_rates_a, "POSITIF_Agustus 2020"),
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_September 2020"), simple_map_plot(jakarta_full_rates_a, "POSITIF_Oktober 2020"), 
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_November 2020"), simple_map_plot(jakarta_full_rates_a, "POSITIF_Desember 2020"), 
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_Januari 2021"), simple_map_plot(jakarta_full_rates_a, "POSITIF_Februari 2021"), 
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_Maret 2021"), simple_map_plot(jakarta_full_rates_a, "POSITIF_April 2021"), 
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_Mei 2021"), simple_map_plot(jakarta_full_rates_a, "POSITIF_Juni 2021"), 
-             simple_map_plot(jakarta_full_rates_a, "POSITIF_Juli 2021"), outer.margins=0)
+tmap_arrange(simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_April 2020"),
+             simple_map_plot(jakarta_full_rates, "POSITIF_MEI 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Juni 2020"), 
+             simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Agustus 2020"),
+             simple_map_plot(jakarta_full_rates, "POSITIF_September 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Oktober 2020"), 
+             simple_map_plot(jakarta_full_rates, "POSITIF_November 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Desember 2020"), 
+             simple_map_plot(jakarta_full_rates, "POSITIF_Januari 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_Februari 2021"), 
+             simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_April 2021"), 
+             simple_map_plot(jakarta_full_rates, "POSITIF_Mei 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_Juni 2021"), 
+             simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0)
     
              
 ```
@@ -296,40 +297,62 @@ fourth_quarter_meng <- simple_map_plot(jakarta_full_rates_qtr, "Fourth Quarter M
 tmap_arrange(first_quarter_meng, second_quarter_meng, third_quarter_meng, fourth_quarter_meng)
 ```
 
-## Percentile Maps
+# Chloropath Maps
 ### Creating helper functions
 
+### Create a function to perform Percentile Mapping
+```{r echo=TRUE}
+jenksmap <- function(df, vnam, legtitle=NA){
+  tm_shape(jakarta_full_rates) +
+     tm_fill(vnam,
+             title=legtitle,
+             n = 5,
+             style = "jenks",
+             palette="-RdBu")  +
+  tm_borders() +
+  tm_layout(title = vnam, title.position = c("right","bottom"))
+}
+```
+
+### Plot Percentile Maps for all the months on Positif Rate
+```{r echo=TRUE}
+tmap_arrange(jenksmap(jakarta_full_rates, "POSITIF_Maret 2020"), jenksmap(jakarta_full_rates, "POSITIF_April 2020"),
+             jenksmap(jakarta_full_rates, "POSITIF_MEI 2020"), jenksmap(jakarta_full_rates, "POSITIF_Juni 2020"), 
+             jenksmap(jakarta_full_rates, "POSITIF_Juli 2020"), jenksmap(jakarta_full_rates, "POSITIF_Agustus 2020"),
+             jenksmap(jakarta_full_rates, "POSITIF_September 2020"), jenksmap(jakarta_full_rates, "POSITIF_Oktober 2020"), 
+             jenksmap(jakarta_full_rates, "POSITIF_November 2020"), jenksmap(jakarta_full_rates, "POSITIF_Desember 2020"), 
+             jenksmap(jakarta_full_rates, "POSITIF_Januari 2021"), jenksmap(jakarta_full_rates, "POSITIF_Februari 2021"), 
+             jenksmap(jakarta_full_rates, "POSITIF_Maret 2021"), jenksmap(jakarta_full_rates, "POSITIF_April 2021"), 
+             jenksmap(jakarta_full_rates, "POSITIF_Mei 2021"), jenksmap(jakarta_full_rates, "POSITIF_Juni 2021"), 
+             jenksmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0)
+```
+### Plot Percentile Maps for all the months on Meninggal Rate
+```{r echo=TRUE}
+tmap_arrange(jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_April 2020"),
+             jenksmap(jakarta_full_rates, "MENINGGAL_MEI 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
+             jenksmap(jakarta_full_rates, "MENINGGAL_Juli 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
+             jenksmap(jakarta_full_rates, "MENINGGAL_September 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_Oktober 2020"), 
+             jenksmap(jakarta_full_rates, "MENINGGAL_November 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_Desember 2020"), 
+             jenksmap(jakarta_full_rates, "MENINGGAL_Januari 2021"), jenksmap(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
+             jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2021"), jenksmap(jakarta_full_rates, "MENINGGAL_April 2021"), 
+             jenksmap(jakarta_full_rates, "MENINGGAL_Mei 2021"), jenksmap(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
+             jenksmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0)
+
+
+```
+
+
+
+## Box Map
+### Creating helper functions
 ### Create a function to extract a variable as a vector from a sf dataframe
-```{r}
+```{r echo=TRUE}
 get.var <- function(vname,df) {
   v <- df[vname] %>% 
     st_set_geometry(NULL)
   v <- unname(v[[1]])
   return(v)
 }
-```
-
-### Create a function to perform Percentile Mapping
-```{r}
-percentmap <- function(vnam, df, legtitle=NA, mtitle="Percentile Map"){
-  percent <- c(0,.01,.1,.5,.9,.99,1)
-  var <- get.var(vnam,df)
-  bperc <- quantile(var,percent)
-  tm_shape(jakarta_full_rates) +
-  tm_polygons() +
-  tm_shape(df) +
-     tm_fill(vnam,
-             title=legtitle,
-             breaks=bperc,
-             palette="Blues",
-          labels=c("< 1%", "1% - 10%", "10% - 50%", "50% - 90%", "90% - 99%", "> 99%"))  +
-  tm_borders() +
-  tm_layout(title = mtitle, title.position = c("right","bottom"))
-}
-```
-
-```{r}
-percentmap("MENINGGAL_April 2021", jakarta_full_rates)
 ```
 ### Creating the boxbreaks function
 ```{r echo=TRUE}
@@ -343,7 +366,7 @@ boxbreaks <- function(v,mult=1.5) {
   # logic for lower and upper fences
   if (lofence < qv[1]) {  # no lower outliers
     bb[1] <- lofence
-    bb[2] <- floor(qv[1])
+    bb[2] <- qv[1]
   } else {
     bb[2] <- lofence
     bb[1] <- qv[1]
@@ -363,16 +386,15 @@ boxbreaks <- function(v,mult=1.5) {
 
 ### Creating the boxmap function
 ```{r echo=TRUE}
-boxmap <- function(vnam, df, 
+boxmap <- function(df, vnam, 
                    legtitle=NA,
-                   mtitle="Box Map",
                    mult=1.5){
   var <- get.var(vnam,df)
   bb <- boxbreaks(var)
   tm_shape(df) +
      tm_fill(vnam,title=legtitle,
              breaks=bb,
-             palette="Blues",
+             palette='-RdBu',
           labels = c("lower outlier", 
                      "< 25%", 
                      "25% - 50%", 
@@ -380,7 +402,7 @@ boxmap <- function(vnam, df,
                      "> 75%", 
                      "upper outlier"))  +
   tm_borders() +
-  tm_layout(title = mtitle, 
+  tm_layout(title = vnam, 
             title.position = c("right",
                                "bottom"))
 }
@@ -388,18 +410,50 @@ boxmap <- function(vnam, df,
 
 ```
 
-```{r}
-boxmap("MENINGGAL_Maret 2020", jakarta_full_rates_a)
-
-
-
+### Plot Box Maps for all the months on Positif Rate
+```{r echo=TRUE}
+tmap_arrange(boxmap(jakarta_full_rates, "POSITIF_Maret 2020"), boxmap(jakarta_full_rates, "POSITIF_April 2020"),
+             boxmap(jakarta_full_rates, "POSITIF_MEI 2020"), boxmap(jakarta_full_rates, "POSITIF_Juni 2020"), 
+             boxmap(jakarta_full_rates, "POSITIF_Juli 2020"), boxmap(jakarta_full_rates, "POSITIF_Agustus 2020"),
+             boxmap(jakarta_full_rates, "POSITIF_September 2020"), boxmap(jakarta_full_rates, "POSITIF_Oktober 2020"), 
+             boxmap(jakarta_full_rates, "POSITIF_November 2020"), boxmap(jakarta_full_rates, "POSITIF_Desember 2020"), 
+             boxmap(jakarta_full_rates, "POSITIF_Januari 2021"), boxmap(jakarta_full_rates, "POSITIF_Februari 2021"), 
+             boxmap(jakarta_full_rates, "POSITIF_Maret 2021"), boxmap(jakarta_full_rates, "POSITIF_April 2021"), 
+             boxmap(jakarta_full_rates, "POSITIF_Mei 2021"), boxmap(jakarta_full_rates, "POSITIF_Juni 2021"), 
+             boxmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0)
 ```
 
 
 
 
+### Plot Box Maps for all the months on Meninggal Rate
+```{r echo=TRUE}
+tmap_arrange(boxmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), boxmap(jakarta_full_rates, "MENINGGAL_April 2020"),
+             boxmap(jakarta_full_rates, "MENINGGAL_MEI 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
+             boxmap(jakarta_full_rates, "MENINGGAL_Juli 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
+             boxmap(jakarta_full_rates, "MENINGGAL_September 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Oktober 2020"), 
+             boxmap(jakarta_full_rates, "MENINGGAL_November 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Desember 2020"), 
+             boxmap(jakarta_full_rates, "MENINGGAL_Januari 2021"), boxmap(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
+             boxmap(jakarta_full_rates, "MENINGGAL_Maret 2021"), boxmap(jakarta_full_rates, "MENINGGAL_April 2021"), 
+             boxmap(jakarta_full_rates, "MENINGGAL_Mei 2021"), boxmap(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
+             boxmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0)
+```
 
+### Visualising the Relative Risk of each Area
+```{r echo=TRUE}
+rel_risk_map <- tm_shape(jakarta_full_rel_risk) +
+  tm_fill("REL_RISK",
+          n = 6,
+          style = "jenks") +
+  tm_borders(alpha = 0.5)
 
+rel_risk_map
+```
+
+### Compare the Total Meninggal vs Relative Risk of each area
+```{r echo=TRUE}
+tmap_arrange(deaths_map, rel_risk_map, ncol=2)
+```
 
 
 
