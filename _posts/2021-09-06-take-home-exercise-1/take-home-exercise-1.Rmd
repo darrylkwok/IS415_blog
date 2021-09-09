@@ -9,15 +9,35 @@ date: 09-06-2021
 output:
   distill::distill_article:
     self_contained: false
+    toc: true
+    toc_depth: 4
+    code_folding: true
+    highlight: haddock
+    highlight_downlit: false
 ---
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo=TRUE, 
+                      eval=TRUE, 
+                      message=FALSE, 
+                      warning=FALSE,
+                      fig.retina = 3)
 ```
+# 1 Overview
 
-## Install and load neccessary Packages
-```{r}
+This exercise aims to reveal the Spatio-Temporal Patterns of Monthly Cummulative Confirmed COVID-19 rate and death rate at kelurahan (sub-district) level. 
+
+ - The analysis will comprise of a few areas:
+  - Total confirmed cases and Total Deaths in all areas
+  - Cummulative Monthly Confirmed Cases Rate and Death Rate in each area
+  - Cummulative Quarterly Confirmed Cases Rate and Death Rate in each area
+  - Chloropeth Maps for Thematic and Analytical Mapping
+  - Relative Risk Rate mapping for each area
+
+## 1.1 Install and load neccessary Packages
+
+```{r echo=TRUE}
 packages = c('sf', 'tmap', 'tidyverse', 'readxl', 'raster', 'maptools', 'spatstat')
 for (p in packages){
   if(!require(p, character.only = T)){
@@ -27,40 +47,59 @@ for (p in packages){
 }
 ```
 
-## Data 
-### Read in Geospatial Data
+# 2 Data 
+
+To successfully complete our analysis, the following datasets will be used: 
+
+  - *BATAS_DESA_DESEMBER_2019_DUKCAPIL_DKI_JAKARTA*, a polygon feature data providing Population Information and Geospatial Information of the DKI Jakarta. Downloaded from https://www.indonesia-geospasial.com/
+  - *Standar Kelurahan Data Corona*, a daily excel file that contains the COVID-19 Statistics of DKI Jakarta. Downloaded from https://riwayat-file-covid-19-dki-jakarta-jakartagis.hub.arcgis.com/
+    - Since we require the monthly cummulative data of DKI Jakarta, we only download the data from the last day of the month to retrieve the monthly cummulative statistics
+
+## 2.1 Geospatial Data
+
+### 2.1.1 Read in Geospatial Data
+
 ``` {r echo=TRUE}
 jakarta_geo = st_read(dsn="data/geospatial", layer="BATAS_DESA_DESEMBER_2019_DUKCAPIL_DKI_JAKARTA")
 ```
-### Transforming Projection of DKI Jakarta to DGN95
+
+### 2.1.2 Transforming Projection of DKI Jakarta to DGN95
+
 ```{r echo=TRUE}
 jakarta_geo <- st_transform(jakarta_geo, crs=23837)
 
 st_geometry(jakarta_geo)
 ```
 
-### Select the first 9 columns of the Geospatial Data
+### 2.1.3 Select the first 9 columns of the Geospatial Data
+
 ```{r echo=TRUE}
 jakarta_geo <- jakarta_geo[0:9]
 
-jakarta_geo
-```
-```{r echo=TRUE}
-jakarta_geo <- jakarta_geo[0:9]
-
-jakarta_geo
+colnames(jakarta_geo)
 ```
 
-### Visualize the islands that are in the Geospatial File
+### 2.1.4 Visualize the islands that are in the Geospatial File
+
+This step allows us to identify what attribute that outer islands have.
+
+  - The KAB_KOTA attribute of outer islands does not contain the word "JAKARTA"
+
 ```{r echo=TRUE}
 tmap_mode("view")
+
 tm_shape(jakarta_geo) + 
   tm_polygons()
+
+tmap_mode("plot")
 ```
 
-###Remove the outer islands
+### 2.1.5 Remove the outer islands
+
+Filter out the islands that contain the word "JAKARTA"
+
 ```{r echo=TRUE}
-tmap_mode("plot")
+
 jakarta_geo <- jakarta_geo %>%
   filter(grepl("JAKARTA", KAB_KOTA, fixed=TRUE))
 
@@ -69,9 +108,11 @@ tm_shape(jakarta_geo) +
 
 ```
 
+## 2.2 Aspatial Data
 
-### Read in Aspatial Data
-### Create a function to preprocess each excel file
+### 2.2.1 Read in Aspatial 
+
+Create a function to preprocess each excel file
 
 This function will read in the excel file, removes the duplicated columns and select the 8 columns that are required which includes a new month column that was created
 
@@ -90,6 +131,15 @@ aspatial_function <- function (xlsx_filepath) {
 ```
 
 ### Read in all the excel files and process them through the created function
+
+Steps Taken:
+
+  * Set the current working directory to the data/aspatial path
+  * Retrieve all the files with the extension *".xlsx"* and assign it to the variable *file_list*
+  * Initialise an empty dataframe, *jakarta_asp*
+  * Iterate through each file in the variable *file_list* and join to the empty dataframe
+  * Output the column names of the final dataframe to check
+
 ```{r echo=TRUE, eval=FALSE}
 setwd('data/aspatial')
 file.list <- list.files(pattern='*.xlsx')
@@ -103,15 +153,24 @@ for (each_file in file.list) {
   jakarta_asp <- rbind(jakarta_asp, aspatial_function(each_file))
 }
 
-jakarta_asp
+colnames(jakarta_asp)
 ```
 
-###Replace "P." to "Pulau"
+### Replace "P." to "Pulau"
+
+To ensure that the values are uniform across the Aspatial and Geospatial data, substitute "P." in the attribute *nama_kelurahan* with "Pulau"
+
 ```{r echo=TRUE, eval=FALSE}
 jakarta_asp$nama_kelurahan <- gsub("P\\.", "PULAU", jakarta_asp$nama_kelurahan)
 ```
 
 ### Save the Aspatial file as RDS
+
+This step is to easily write and load the Aspatial data from the data folder. This step has a few benefits:
+
+  - To avoid having to upload all the excel files onto GitHub
+  - To avoid having to read all the excel files every time we run this file
+
 ```{r echo=TRUE, eval=FALSE}
 jakarta_asp_rds <- write_rds(jakarta_asp, "data/rds/jakarta_asp.rds")
 ```
@@ -123,6 +182,9 @@ jakarta_asp <- read_rds("data/rds/jakarta_asp.rds")
 ```
 
 ### Prepare data to have cummulative monthly covid data in each column
+
+Since we are required to plot the monthly cummulative data later on, we pivot the monthly cummulative data into a wide version.
+
 ```{r echo=TRUE}
 jakarta_asp <- jakarta_asp %>%
   group_by(ID_KEL, Nama_provinsi, nama_kota, nama_kecamatan, nama_kelurahan, month) %>%
@@ -134,72 +196,122 @@ jakarta_asp
 ```
 
 ### Check for any NA values
+
+This code output shows that there are some NA values in the Aspatial Data
+
+  - We will join both the Geospatial and Aspatial Data before dealing with NA values
+
 ```{r echo=TRUE}
 jakarta_asp[rowSums(is.na(jakarta_asp)) > 0, ]  
 ```
 
 
 ### Join the Geospatial and Aspatial Data
-We can only join by ID_KEL and KODE_DESA because there are many spelling discrepancies between the Aspatial Data and the Geospatial Data
+
+We can only join by ID_KEL and KODE_DESA because there are many spelling discrepancies in the attributes fields between the Aspatial Data and the Geospatial 
+
+  - For instance, a Kelurahan is spelled as *"KRENDANG"* in the Geospatial file, but spelled as *"KERENDANG"* in the Aspatial file
+
 ```{r echo=TRUE}
 jakarta_full <- right_join(jakarta_asp, jakarta_geo, by= 
                             c("ID_KEL" = "KODE_DESA"))
 ```
 
 ### Check for missing values
+
+Here we can see that there are no more NA values after joining the 2 datasets together
+
 ```{r echo=TRUE}
 jakarta_full[rowSums(is.na(jakarta_full)) > 0, ]  
 ```
 
-###Perform Calculation to Generate Total Deaths and Total Positive for each area
+## 3 Calculations
+
+### Perform Calculation to Generate Total Deaths (MENINGGAL) and Total Positive (POSITIF) for each area
+
+We calculate the Total Deaths and Total Positive for each area to visualise the cummulative impact of COVID-19 on these areas
+
+  - For each area, we sum up the total Positif count and the total Deaths count
+
 ```{r echo=TRUE}
 jakarta_full <- jakarta_full %>%
   mutate(`TOTAL POSITIF` = rowSums(.[6:22])) %>%
   mutate(`TOTAL MENINGGAL` = rowSums(.[23:39]))
 ```
 
-### Perform calculation to Generate the Cumulative confirmed cases per 1000 and death rate
-The cumulative confirmed cases per 1000 calculates the number of confirmed cases per 1000 people. The death rate calculates the ratio of deaths to the number of confirmed cases
+### Perform calculation to Generate the Cumulative confirmed (POSITIF) cases per 1000 and death rate (MENINGGAL)
+
+  - The cumulative confirmed cases per 1000 calculates the number of confirmed cases per 1000 people. 
+  - The death rate calculates the ratio of deaths to the number of confirmed cases.
+
 ```{r echo=TRUE}
 jakarta_full_rates <- jakarta_full 
 
-jakarta_full_rates[23:39] <- jakarta_full_rates[23:39] / (jakarta_full_rates[6:22]/1000)
-jakarta_full_rates[6:22] <- jakarta_full_rates[6:22] / (jakarta_full_rates$JUMLAH_PEN / 1000)
+jakarta_full_rates[23:39] <- jakarta_full_rates[23:39] / (jakarta_full_rates[6:22]) * 100 # Death Rate
+jakarta_full_rates[6:22] <- jakarta_full_rates[6:22] / (jakarta_full_rates$JUMLAH_PEN / 1000) # Confirmed Case Rate
 ```
 
 ### Perform Calculation to derive the Relative Risk for each area
+
+Relative Risk, also known as Standardized Mortality Rate is the ratio of the proability of an outcome in an exposed group to the probability of an outcome in an unexposed group, is calculated as follows:
+
+
+
+Relative Risk is represented as follows
+$$
+ E_i = n_i \times mortality_{Area} 
+$$
+$$
+\text{ where }
+$$
+$$
+ mortality_{Area} = \frac{\sum_{i=1}^j O_i}{\sum_{i=1}^j n_i} 
+$$
+
+$$
+\text{ and }
+$$
+$$  
+   O_i = \text{observed death count for census unit i}
+$$
+$$
+   n_i = \text{population count within census unit i}
+$$  
+
 ```{r echo=TRUE}
 jakarta_full_rel_risk <- jakarta_full %>%
   mutate(`REL_RISK` = (rowSums(.[23:39]) * 100) / (rowSums(.[23:39]) * jakarta_full$JUMLAH_PEN))
 ```
 
-### Compute the COnfirmed Cases Rate and Death Rate for 5 months interval for each Area
-```{r echo=TRUE}
-first_quarter <- c("Maret 2020", "April 2020", "MEI 2020", "Juni 2020", "Juli 2020")
-second_quarter <- c("Agustus 2020", "September 2020", "Oktober 2020", "November 2020", "Desember 2020")
-third_quarter <- c("Januari 2021", "Februari 2021", "Maret 2021", "April 2021", "Mei 2021")
-fourth_quarter <- c("Juni 2021", "Juli 2021")
+### Compute the Confirmed Cases (POSITIF) Rate and Death Rate (MENINGGAL) for 5 months interval for each Area
 
-all_quarters = list(first_quarter, second_quarter, third_quarter, fourth_quarter)
+Segment the months to 5 separate groups, forming a total of 4 quarters to calculate the Average Positive Rate and Death for each quarter:
+  
+  - First quarter: March 2020, April 2020, May 2020, June 2020, July 2020
+  - Second quarter: August 2020, September 2020, October 2020, November 2020, December 2020
+  - Third Quarter: January 2021, February 2021, March 2021, April 2021, May 2021
+  - Fourth Quarter: June 2021, July 2021
 
+```{r echo=TRUE }
 jakarta_full_rates_qtr <- jakarta_full_rates %>%
-  mutate(`First Quarter Positif` = dplyr::select(., "POSITIF_Maret 2020", "POSITIF_April 2020", "POSITIF_MEI 2020", "POSITIF_Juni 2020", "POSITIF_Juli 2020") %>% rowSums()) %>%
-  mutate(`Second Quarter Positif` = dplyr::select(.,"POSITIF_Agustus 2020", "POSITIF_September 2020", "POSITIF_Oktober 2020", "POSITIF_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
-  mutate(`Third Quarter Positif` = dplyr::select(., "POSITIF_Januari 2021", "POSITIF_Februari 2021", "POSITIF_Maret 2021", "POSITIF_April 2021", "POSITIF_Mei 2021") %>% rowSums()) %>% 
-  mutate(`Fourth Quarter Positif` = dplyr::select(., "POSITIF_Juni 2021", "POSITIF_Juli 2021") %>% rowSums()) %>%
-  mutate(`First Quarter Meninggal` = dplyr::select(., "MENINGGAL_Maret 2020", "MENINGGAL_April 2020", "MENINGGAL_MEI 2020", "MENINGGAL_Juni 2020", "MENINGGAL_Juli 2020") %>% rowSums()) %>% 
-  mutate(`Second Quarter Meninggal` = dplyr::select(.,"MENINGGAL_Agustus 2020", "MENINGGAL_September 2020", "MENINGGAL_Oktober 2020", "MENINGGAL_November 2020", "POSITIF_Desember 2020") %>% rowSums()) %>%
-  mutate(`Third Quarter Meninggal` = dplyr::select(., "MENINGGAL_Januari 2021", "MENINGGAL_Februari 2021", "MENINGGAL_Maret 2021", "MENINGGAL_April 2021", "MENINGGAL_Mei 2021") %>% rowSums()) %>% 
-  mutate(`Fourth Quarter Meninggal` = dplyr::select(., "MENINGGAL_Juni 2021", "MENINGGAL_Juli 2021") %>% rowSums()) %>%
+  mutate(`First Quarter Positif` = dplyr::select(., "POSITIF_Maret 2020", "POSITIF_April 2020", "POSITIF_MEI 2020", "POSITIF_Juni 2020", "POSITIF_Juli 2020") %>% rowSums() / 5) %>%
+  mutate(`Second Quarter Positif` = dplyr::select(.,"POSITIF_Agustus 2020", "POSITIF_September 2020", "POSITIF_Oktober 2020", "POSITIF_November 2020", "POSITIF_Desember 2020") %>% rowSums() / 5) %>%
+  mutate(`Third Quarter Positif` = dplyr::select(., "POSITIF_Januari 2021", "POSITIF_Februari 2021", "POSITIF_Maret 2021", "POSITIF_April 2021", "POSITIF_Mei 2021") %>% rowSums() / 5) %>% 
+  mutate(`Fourth Quarter Positif` = dplyr::select(., "POSITIF_Juni 2021", "POSITIF_Juli 2021") %>% rowSums() / 2) %>%
+  mutate(`First Quarter Meninggal` = dplyr::select(., "MENINGGAL_Maret 2020", "MENINGGAL_April 2020", "MENINGGAL_MEI 2020", "MENINGGAL_Juni 2020", "MENINGGAL_Juli 2020") %>% rowSums() / 5) %>% 
+  mutate(`Second Quarter Meninggal` = dplyr::select(.,"MENINGGAL_Agustus 2020", "MENINGGAL_September 2020", "MENINGGAL_Oktober 2020", "MENINGGAL_November 2020", "POSITIF_Desember 2020") %>% rowSums() / 5) %>%
+  mutate(`Third Quarter Meninggal` = dplyr::select(., "MENINGGAL_Januari 2021", "MENINGGAL_Februari 2021", "MENINGGAL_Maret 2021", "MENINGGAL_April 2021", "MENINGGAL_Mei 2021") %>% rowSums() / 5) %>% 
+  mutate(`Fourth Quarter Meninggal` = dplyr::select(., "MENINGGAL_Juni 2021", "MENINGGAL_Juli 2021") %>% rowSums() / 2) %>%
   dplyr::select(`ID_KEL`, `Nama_provinsi`, `nama_kota`, `nama_kecamatan`, `First Quarter Positif`, `Second Quarter Positif`, `Third Quarter Positif`, `Fourth Quarter Positif`, `First Quarter Meninggal`, `Second Quarter Meninggal`, `Third Quarter Meninggal`, `Fourth Quarter Meninggal`, `geometry`)
 
-
+colnames(jakarta_full_rates_qtr)
 ```
 
 
+# 4 Maps
 
-## Exploring the Geospatial Data
-### Convert R dataframe into sf object
+## 4.1 Exploring the Geospatial Data
+### Convert R dataframes into sf object
 ```{r echo=TRUE}
 jakarta_full <- st_as_sf(jakarta_full)
 jakarta_full_rates <- st_as_sf(jakarta_full_rates)
@@ -211,19 +323,25 @@ jakarta_full_rates_qtr[is.na(jakarta_full_rates_qtr)] <- 0
 ```
 
 ### Create function to plot simple maps
+
 ```{r echo=TRUE}
 simple_map_plot <- function(df, varname) {
   tm_shape(jakarta_full_rates) +
     tm_polygons() +
   tm_shape(df) +
-    tm_fill(varname) +
-    tm_borders(lwd=0.1, alpha = 1)
+    tm_fill(varname, title="") +
+    tm_borders(lwd=0.1, alpha = 1) +
+    tm_layout(main.title = varname,
+              main.title.size = 0.5,
+              main.title.position="center",
+              legend.text.size = 0.5)
 }
 
 ```
 
 
 ### Plot the Population, Positive Cases and Deaths Map
+
 ```{r echo=TRUE}
 pop_map <- simple_map_plot(jakarta_full, "JUMLAH_PEN")
 
@@ -233,14 +351,25 @@ deaths_map <-simple_map_plot(jakarta_full, "TOTAL MENINGGAL")
 ```
 
 ### Visualise each of the maps side by side
+
+This allows us to see the Population, Total Confirmed Cases and the Total Deaths in the areas
+
 ```{r echo=TRUE}
 tmap_mode("plot")
 
 tmap_arrange(pop_map, positive_map, deaths_map, ncol=3)
 ```
 
-### Plot Positif Rate for all the months
-```{r echo=TRUE}
+From the above 3 maps, we can infer that Areas with a higher population count have a higher Positive(POSITIF) count and Death(MENINGGAL) count
+
+
+### Plot Confirmed Cases(POSITIF) Rate for all the months
+
+The plots below shows the Confirmed Cases Rate per 1000 people for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Positive(POSITIF) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
 tmap_arrange(simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_April 2020"),
              simple_map_plot(jakarta_full_rates, "POSITIF_MEI 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Juni 2020"), 
              simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Agustus 2020"),
@@ -249,13 +378,18 @@ tmap_arrange(simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2020"), simple_m
              simple_map_plot(jakarta_full_rates, "POSITIF_Januari 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_Februari 2021"), 
              simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_April 2021"), 
              simple_map_plot(jakarta_full_rates, "POSITIF_Mei 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_Juni 2021"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0)
+             simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
     
              
 ```
 
-### Plot Meninggal Rate for all the months
-```{r echo=TRUE}
+### Plot Death(MENINGGAL) Rate for all the months
+
+The plots below shows the Death Rates for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Death(MENINGGAL) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
 tmap_arrange(simple_map_plot(jakarta_full_rates, "MENINGGAL_Maret 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_April 2020"),
              simple_map_plot(jakarta_full_rates, "MENINGGAL_MEI 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
              simple_map_plot(jakarta_full_rates, "MENINGGAL_Juli 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
@@ -264,15 +398,18 @@ tmap_arrange(simple_map_plot(jakarta_full_rates, "MENINGGAL_Maret 2020"), simple
              simple_map_plot(jakarta_full_rates, "MENINGGAL_Januari 2021"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
              simple_map_plot(jakarta_full_rates, "MENINGGAL_Maret 2021"), simple_map_plot(jakarta_full_rates, "MENINGGAL_April 2021"), 
              simple_map_plot(jakarta_full_rates, "MENINGGAL_Mei 2021"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0)
-
-
+             simple_map_plot(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0, ncol=3)
 ```
 
 
 
-### Plot Positif Rates for the different quarters
-```{r echo=TRUE}
+### Plot Confirmed Cases (POSITIF) Rates for the different quarters
+
+The plots below shows the Confirmed Cases Rates per 1000 people for 4 quarters starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Positive(POSITIF) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-body-outset", fig.width=6, fig_height=4}
 first_quarter_pos <- simple_map_plot(jakarta_full_rates_qtr, "First Quarter Positif")
 
 second_quarter_pos <- simple_map_plot(jakarta_full_rates_qtr, "Second Quarter Positif")
@@ -284,8 +421,15 @@ fourth_quarter_pos <- simple_map_plot(jakarta_full_rates_qtr, "Fourth Quarter Po
 tmap_arrange(first_quarter_pos, second_quarter_pos, third_quarter_pos, fourth_quarter_pos)
 ```
 
-### Plot Meninggal Rates for the different quarters
-```{r echo=TRUE}
+The Average Confirmed Positive(POSITIF) rate is shown to have increased from the initial phase of COVID-19 outbreak.There are a lot more Confirmed Cases in the months of the fourth quarter as compared to the months of the first quarter.
+
+### Plot Death(MENINGGAL) Rates for the different quarters
+
+The plots below shows the Death Rates for 4 quarters starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Death(MENINGGAL) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-body-outset", fig.width=6, fig_height=4}
 first_quarter_meng <- simple_map_plot(jakarta_full_rates_qtr, "First Quarter Meninggal")
 
 second_quarter_meng <- simple_map_plot(jakarta_full_rates_qtr, "Second Quarter Meninggal")
@@ -297,25 +441,38 @@ fourth_quarter_meng <- simple_map_plot(jakarta_full_rates_qtr, "Fourth Quarter M
 tmap_arrange(first_quarter_meng, second_quarter_meng, third_quarter_meng, fourth_quarter_meng)
 ```
 
-# Chloropath Maps
+In contrast to the Average Confirmed Cases(POSITIF) Rate, the Death (MENINGGAL) Rate is observed to be decreasing across the quarters. This might be due to the government's approach to treating COVID-19 among its population and resulting in lower death rates.
+
 ### Creating helper functions
 
-### Create a function to perform Percentile Mapping
+### Create a function to perform Natural Breaks Mapping
+
+
+Jenks Classification, which is also known as Natural Breaks Classification is used because this form of classification is an optimization method to ensure that there are lesser variation in each group to ensure better grouping. 
+
 ```{r echo=TRUE}
-jenksmap <- function(df, vnam, legtitle=NA){
+jenksmap <- function(df, vnam){
   tm_shape(jakarta_full_rates) +
      tm_fill(vnam,
-             title=legtitle,
              n = 5,
              style = "jenks",
-             palette="-RdBu")  +
-  tm_borders() +
-  tm_layout(title = vnam, title.position = c("right","bottom"))
-}
+             palette="-RdBu",
+             title="")  +
+  tm_borders(lwd=0.1, alpha = 1) +
+    tm_layout(main.title = vnam,
+              main.title.size = 0.5,
+              main.title.position="center",
+              legend.text.size = 1.75)
+} 
 ```
 
-### Plot Percentile Maps for all the months on Positif Rate
-```{r echo=TRUE}
+### Plot Natural Breaks Classification Maps for all the months on Confirmed Cases(POSITIF) Rate
+
+The plots below shows the Natural Breaks Classification Maps for the Confirmed Cases Rates per 1000 people for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Positive(POSITIF) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=10}
 tmap_arrange(jenksmap(jakarta_full_rates, "POSITIF_Maret 2020"), jenksmap(jakarta_full_rates, "POSITIF_April 2020"),
              jenksmap(jakarta_full_rates, "POSITIF_MEI 2020"), jenksmap(jakarta_full_rates, "POSITIF_Juni 2020"), 
              jenksmap(jakarta_full_rates, "POSITIF_Juli 2020"), jenksmap(jakarta_full_rates, "POSITIF_Agustus 2020"),
@@ -324,10 +481,15 @@ tmap_arrange(jenksmap(jakarta_full_rates, "POSITIF_Maret 2020"), jenksmap(jakart
              jenksmap(jakarta_full_rates, "POSITIF_Januari 2021"), jenksmap(jakarta_full_rates, "POSITIF_Februari 2021"), 
              jenksmap(jakarta_full_rates, "POSITIF_Maret 2021"), jenksmap(jakarta_full_rates, "POSITIF_April 2021"), 
              jenksmap(jakarta_full_rates, "POSITIF_Mei 2021"), jenksmap(jakarta_full_rates, "POSITIF_Juni 2021"), 
-             jenksmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0)
+             jenksmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
 ```
-### Plot Percentile Maps for all the months on Meninggal Rate
-```{r echo=TRUE}
+### Plot Natural Breaks Classification Maps for all the months on Deaths (MENINGGAL) Rate
+
+The plots below shows the Natural Breaks Classification Maps for the Deaths Rates for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Death(MENINGGAL) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
 tmap_arrange(jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_April 2020"),
              jenksmap(jakarta_full_rates, "MENINGGAL_MEI 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
              jenksmap(jakarta_full_rates, "MENINGGAL_Juli 2020"), jenksmap(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
@@ -336,7 +498,7 @@ tmap_arrange(jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), jenksmap(jaka
              jenksmap(jakarta_full_rates, "MENINGGAL_Januari 2021"), jenksmap(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
              jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2021"), jenksmap(jakarta_full_rates, "MENINGGAL_April 2021"), 
              jenksmap(jakarta_full_rates, "MENINGGAL_Mei 2021"), jenksmap(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
-             jenksmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0)
+             jenksmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0, ncol=3)
 
 
 ```
@@ -344,8 +506,11 @@ tmap_arrange(jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), jenksmap(jaka
 
 
 ## Box Map
+
 ### Creating helper functions
-### Create a function to extract a variable as a vector from a sf dataframe
+
+### Create a function to extract a variable as a vector 
+
 ```{r echo=TRUE}
 get.var <- function(vname,df) {
   v <- df[vname] %>% 
@@ -354,105 +519,126 @@ get.var <- function(vname,df) {
   return(v)
 }
 ```
-### Creating the boxbreaks function
-```{r echo=TRUE}
-boxbreaks <- function(v,mult=1.5) {
-  qv <- unname(quantile(v))
-  iqr <- qv[4] - qv[2]
-  upfence <- qv[4] + mult * iqr
-  lofence <- qv[2] - mult * iqr
-  # initialize break points vector
-  bb <- vector(mode="numeric",length=7)
-  # logic for lower and upper fences
-  if (lofence < qv[1]) {  # no lower outliers
-    bb[1] <- lofence
-    bb[2] <- qv[1]
-  } else {
-    bb[2] <- lofence
-    bb[1] <- qv[1]
-  }
-  if (upfence > qv[5]) { # no upper outliers
-    bb[7] <- upfence
-    bb[6] <- ceiling(qv[5])
-  } else {
-    bb[6] <- upfence
-    bb[7] <- qv[5]
-  }
-  bb[3:5] <- qv[2:4]
-  return(bb)
-}
 
-```
+### Creating the percentilemap function
 
-### Creating the boxmap function
+The percent variable was manually set to define the breaks within the data. Additionally, the quantile function was used to define which bin each record belongs to. 
+
 ```{r echo=TRUE}
-boxmap <- function(df, vnam, 
-                   legtitle=NA,
-                   mult=1.5){
+percentmap <- function(df, vnam){
+  percent <- c(0,.01,.1,.5,.9,.99,1)
   var <- get.var(vnam,df)
-  bb <- boxbreaks(var)
+  bperc <- quantile(var,percent)
   tm_shape(df) +
-     tm_fill(vnam,title=legtitle,
-             breaks=bb,
-             palette='-RdBu',
-          labels = c("lower outlier", 
-                     "< 25%", 
-                     "25% - 50%", 
-                     "50% - 75%",
-                     "> 75%", 
-                     "upper outlier"))  +
-  tm_borders() +
-  tm_layout(title = vnam, 
-            title.position = c("right",
-                               "bottom"))
+     tm_fill(vnam,
+             breaks=bperc,
+             palette="-RdBu",
+          labels=c("< 1%", "1% - 10%", "10% - 50%", "50% - 90%", "90% - 99%", "> 99%"),
+          title="")  +
+  tm_borders(lwd=0.1, alpha = 1) +
+  tm_layout(main.title = vnam,
+              main.title.size = 0.5,
+              main.title.position="center",
+              legend.text.size = 1)
 }
 
+```
+
+### Plot Percentile Maps for all the months on Confirmed Cases Rate
+
+The plots below shows the Percentile Maps for the Confirmed Cases Rates per 1000 people for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Positive(POSITIF) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
+tmap_arrange(percentmap(jakarta_full_rates, "POSITIF_Maret 2020"), percentmap(jakarta_full_rates, "POSITIF_April 2020"),
+             percentmap(jakarta_full_rates, "POSITIF_MEI 2020"), percentmap(jakarta_full_rates, "POSITIF_Juni 2020"), 
+             percentmap(jakarta_full_rates, "POSITIF_Juli 2020"), percentmap(jakarta_full_rates, "POSITIF_Agustus 2020"),
+             percentmap(jakarta_full_rates, "POSITIF_September 2020"), percentmap(jakarta_full_rates, "POSITIF_Oktober 2020"), 
+             percentmap(jakarta_full_rates, "POSITIF_November 2020"), percentmap(jakarta_full_rates, "POSITIF_Desember 2020"), 
+             percentmap(jakarta_full_rates, "POSITIF_Januari 2021"), percentmap(jakarta_full_rates, "POSITIF_Februari 2021"), 
+             percentmap(jakarta_full_rates, "POSITIF_Maret 2021"), percentmap(jakarta_full_rates, "POSITIF_April 2021"), 
+             percentmap(jakarta_full_rates, "POSITIF_Mei 2021"), percentmap(jakarta_full_rates, "POSITIF_Juni 2021"), 
+             percentmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
+```
+
+```{r}
+test_var <- get.var("MENINGGAL_Maret 2020",jakarta_full_rates)
+quantile(test_var)
 
 ```
 
-### Plot Box Maps for all the months on Positif Rate
+
+### Plot Percentile Maps for all the months on Meninggal Rate
+
+The plots below shows the Percentile Maps for the Death Rates for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Death(MENINGGAL) rate is plotted and compared against the other Areas within its own months.
+
+```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
+tmap_arrange(percentmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), percentmap(jakarta_full_rates, "MENINGGAL_April 2020"),
+             percentmap(jakarta_full_rates, "MENINGGAL_MEI 2020"), percentmap(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
+             percentmap(jakarta_full_rates, "MENINGGAL_Juli 2020"), percentmap(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
+             percentmap(jakarta_full_rates, "MENINGGAL_September 2020"), percentmap(jakarta_full_rates, "MENINGGAL_Oktober 2020"), 
+             percentmap(jakarta_full_rates, "MENINGGAL_November 2020"), percentmap(jakarta_full_rates, "MENINGGAL_Desember 2020"), 
+             percentmap(jakarta_full_rates, "MENINGGAL_Januari 2021"), percentmap(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
+             percentmap(jakarta_full_rates, "MENINGGAL_Maret 2021"), percentmap(jakarta_full_rates, "MENINGGAL_April 2021"), 
+             percentmap(jakarta_full_rates, "MENINGGAL_Mei 2021"), percentmap(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
+             percentmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0, ncol=3)
+```
+
+### Analyzing March(Maret) 2020 Death(MENINGGAL) Rate
+
+The Death(MENINGGAL) rate in all the Areas during March(Maret) 2020, plotted in a Percentile Map is almost uniform in color. 
+
+  - Majority of the areas in March 2020 have Death Rates above 50%. This means that more than 50% of confirmed cases die due to COVID-19
+
 ```{r echo=TRUE}
-tmap_arrange(boxmap(jakarta_full_rates, "POSITIF_Maret 2020"), boxmap(jakarta_full_rates, "POSITIF_April 2020"),
-             boxmap(jakarta_full_rates, "POSITIF_MEI 2020"), boxmap(jakarta_full_rates, "POSITIF_Juni 2020"), 
-             boxmap(jakarta_full_rates, "POSITIF_Juli 2020"), boxmap(jakarta_full_rates, "POSITIF_Agustus 2020"),
-             boxmap(jakarta_full_rates, "POSITIF_September 2020"), boxmap(jakarta_full_rates, "POSITIF_Oktober 2020"), 
-             boxmap(jakarta_full_rates, "POSITIF_November 2020"), boxmap(jakarta_full_rates, "POSITIF_Desember 2020"), 
-             boxmap(jakarta_full_rates, "POSITIF_Januari 2021"), boxmap(jakarta_full_rates, "POSITIF_Februari 2021"), 
-             boxmap(jakarta_full_rates, "POSITIF_Maret 2021"), boxmap(jakarta_full_rates, "POSITIF_April 2021"), 
-             boxmap(jakarta_full_rates, "POSITIF_Mei 2021"), boxmap(jakarta_full_rates, "POSITIF_Juni 2021"), 
-             boxmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0)
+percentmap(jakarta_full_rates, "MENINGGAL_Maret 2020")
 ```
 
+Therefore, we plot the Number of Confirmed Cases(POSITIF) and the Number of Deaths(MENINGGAL) in March to analyze further
 
-
-
-### Plot Box Maps for all the months on Meninggal Rate
 ```{r echo=TRUE}
-tmap_arrange(boxmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), boxmap(jakarta_full_rates, "MENINGGAL_April 2020"),
-             boxmap(jakarta_full_rates, "MENINGGAL_MEI 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
-             boxmap(jakarta_full_rates, "MENINGGAL_Juli 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
-             boxmap(jakarta_full_rates, "MENINGGAL_September 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Oktober 2020"), 
-             boxmap(jakarta_full_rates, "MENINGGAL_November 2020"), boxmap(jakarta_full_rates, "MENINGGAL_Desember 2020"), 
-             boxmap(jakarta_full_rates, "MENINGGAL_Januari 2021"), boxmap(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
-             boxmap(jakarta_full_rates, "MENINGGAL_Maret 2021"), boxmap(jakarta_full_rates, "MENINGGAL_April 2021"), 
-             boxmap(jakarta_full_rates, "MENINGGAL_Mei 2021"), boxmap(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
-             boxmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0)
+march_pos_map <- simple_map_plot(jakarta_full, "POSITIF_Maret 2020")
+march_men_map <- simple_map_plot(jakarta_full, "MENINGGAL_Maret 2020")
+
+tmap_arrange(march_pos_map, march_men_map, ncol=2)
 ```
+
+The 2 charts above are relatively similar in Areas that have a darker shade. However, there are many areas that are darker shaded in one map and lighter shaded in another map. 
+
+  - This means that in majority of the areas, the proportion of people dying is high if they are tested positive of COVID-19
+  
+Since COVID-19 started early last year, when people are tested positive for it, the chance of survival is very low because there isn't a medical approach to cure it. Therefore, this might be the reasoning behind the high deaths in relation to the number of confirmed cases.
 
 ### Visualising the Relative Risk of each Area
+
+From here we can see which areas has the highest relative risk
+
 ```{r echo=TRUE}
 rel_risk_map <- tm_shape(jakarta_full_rel_risk) +
   tm_fill("REL_RISK",
           n = 6,
           style = "jenks") +
-  tm_borders(alpha = 0.5)
+  tm_borders(lwd=0.1, alpha = 1) +
+  tm_layout(main.title = "REL_RISK",
+              main.title.size = 0.5,
+              main.title.position="center",
+              legend.text.size = 1)
 
 rel_risk_map
 ```
 
 ### Compare the Total Meninggal vs Relative Risk of each area
+
+Through this visual comparison we can see that high death counts does not necessarily mean that the Standardized Mortality Rate (Relative Risk) would be high in that area. 
+
+  - In the visuals below, it is common to see areas with high death counts to have relatively low Relative Risk
+  - In areas that have a huge population and high death rates, generally has a lower relative risk. This means that for areas with a smaller population, the relative risk is higher.
+
 ```{r echo=TRUE}
-tmap_arrange(deaths_map, rel_risk_map, ncol=2)
+tmap_arrange(deaths_map, rel_risk_map, pop_map ,ncol=2)
 ```
 
 
