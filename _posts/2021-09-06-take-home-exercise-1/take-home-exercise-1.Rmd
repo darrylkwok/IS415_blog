@@ -311,7 +311,11 @@ colnames(jakarta_full_rates_qtr)
 # 4 Maps
 
 ## 4.1 Exploring the Geospatial Data
+
 ### Convert R dataframes into sf object
+
+COnver the dataframes into sf objects and replace the NA values with 0
+
 ```{r echo=TRUE}
 jakarta_full <- st_as_sf(jakarta_full)
 jakarta_full_rates <- st_as_sf(jakarta_full_rates)
@@ -322,12 +326,17 @@ jakarta_full_rates[is.na(jakarta_full_rates)] <- 0
 jakarta_full_rates_qtr[is.na(jakarta_full_rates_qtr)] <- 0
 ```
 
+
+## Raw Values
+
+This section shows us the raw values that is retrieved from the Data
+
 ### Create function to plot simple maps
+
+This functions plots maps with the variable name as the fill and plot title
 
 ```{r echo=TRUE}
 simple_map_plot <- function(df, varname) {
-  tm_shape(jakarta_full_rates) +
-    tm_polygons() +
   tm_shape(df) +
     tm_fill(varname, title="") +
     tm_borders(lwd=0.1, alpha = 1) +
@@ -360,46 +369,67 @@ tmap_mode("plot")
 tmap_arrange(pop_map, positive_map, deaths_map, ncol=3)
 ```
 
+Population, Total Count of Confirmed (POSITIF) Cases and Total Count of Death (MENINGGAL) Cases are displayed here
+
+  - It can be observed that areas with high population count usually leads to higher counts of confirmed cases and deaths
+  
+  - However, from here the inference that higher population leading to higher counts of confirmed cases and deaths cannot be drawn directly
+
 From the above 3 maps, we can infer that Areas with a higher population count have a higher Positive(POSITIF) count and Death(MENINGGAL) count
 
 
-### Plot Confirmed Cases(POSITIF) Rate for all the months
+### Plot the Count of Confirmed Cases(POSITIF) for all the months
 
-The plots below shows the Confirmed Cases Rate per 1000 people for all the months starting from *March 2020 to July 2021*
+The plots below shows the Number of Confirmed Cases for all the months starting from *March 2020 to July 2021*
 
-  - For each of the maps, the Positive(POSITIF) rate is plotted and compared against the other Areas within its own months.
+  - For each of the maps, the Number of Confirmed Cases are plotted and compared against the other Areas within its own months.
 
 ```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
-tmap_arrange(simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_April 2020"),
-             simple_map_plot(jakarta_full_rates, "POSITIF_MEI 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Juni 2020"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Agustus 2020"),
-             simple_map_plot(jakarta_full_rates, "POSITIF_September 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Oktober 2020"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_November 2020"), simple_map_plot(jakarta_full_rates, "POSITIF_Desember 2020"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_Januari 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_Februari 2021"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_Maret 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_April 2021"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_Mei 2021"), simple_map_plot(jakarta_full_rates, "POSITIF_Juni 2021"), 
-             simple_map_plot(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
+tmap_arrange(simple_map_plot(jakarta_full, "POSITIF_Maret 2020"), simple_map_plot(jakarta_full, "POSITIF_April 2020"),
+             simple_map_plot(jakarta_full, "POSITIF_MEI 2020"), simple_map_plot(jakarta_full, "POSITIF_Juni 2020"), 
+             simple_map_plot(jakarta_full, "POSITIF_Juli 2020"), simple_map_plot(jakarta_full, "POSITIF_Agustus 2020"),
+             simple_map_plot(jakarta_full, "POSITIF_September 2020"), simple_map_plot(jakarta_full, "POSITIF_Oktober 2020"), 
+             simple_map_plot(jakarta_full, "POSITIF_November 2020"), simple_map_plot(jakarta_full, "POSITIF_Desember 2020"), 
+             simple_map_plot(jakarta_full, "POSITIF_Januari 2021"), simple_map_plot(jakarta_full, "POSITIF_Februari 2021"), 
+             simple_map_plot(jakarta_full, "POSITIF_Maret 2021"), simple_map_plot(jakarta_full, "POSITIF_April 2021"), 
+             simple_map_plot(jakarta_full, "POSITIF_Mei 2021"), simple_map_plot(jakarta_full, "POSITIF_Juni 2021"), 
+             simple_map_plot(jakarta_full, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
     
              
 ```
 
-### Plot Death(MENINGGAL) Rate for all the months
+From the above maps, observe the legend values that are plotted. It is on an upward trend, increasing through each months till July 2021
 
-The plots below shows the Death Rates for all the months starting from *March 2020 to July 2021*
+### Plot Number of Deaths(MENINGGAL) for all the months
 
-  - For each of the maps, the Death(MENINGGAL) rate is plotted and compared against the other Areas within its own months.
+The plots below shows the Number of Deaths for all the months starting from *March 2020 to July 2021*
+
+  - For each of the maps, the Number of Deaths is plotted and compared against the other Areas within its own months.
 
 ```{r echo=TRUE, layout="l-screen-inset", fig.width=5, fig_height=5}
-tmap_arrange(simple_map_plot(jakarta_full_rates, "MENINGGAL_Maret 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_April 2020"),
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_MEI 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Juni 2020"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_Juli 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Agustus 2020"),
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_September 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Oktober 2020"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_November 2020"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Desember 2020"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_Januari 2021"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Februari 2021"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_Maret 2021"), simple_map_plot(jakarta_full_rates, "MENINGGAL_April 2021"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_Mei 2021"), simple_map_plot(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
-             simple_map_plot(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0, ncol=3)
+tmap_arrange(simple_map_plot(jakarta_full, "MENINGGAL_Maret 2020"), simple_map_plot(jakarta_full, "MENINGGAL_April 2020"),
+             simple_map_plot(jakarta_full, "MENINGGAL_MEI 2020"), simple_map_plot(jakarta_full, "MENINGGAL_Juni 2020"), 
+             simple_map_plot(jakarta_full, "MENINGGAL_Juli 2020"), simple_map_plot(jakarta_full, "MENINGGAL_Agustus 2020"),
+             simple_map_plot(jakarta_full, "MENINGGAL_September 2020"), simple_map_plot(jakarta_full, "MENINGGAL_Oktober 2020"), 
+             simple_map_plot(jakarta_full, "MENINGGAL_November 2020"), simple_map_plot(jakarta_full, "MENINGGAL_Desember 2020"), 
+             simple_map_plot(jakarta_full, "MENINGGAL_Januari 2021"), simple_map_plot(jakarta_full, "MENINGGAL_Februari 2021"), 
+             simple_map_plot(jakarta_full, "MENINGGAL_Maret 2021"), simple_map_plot(jakarta_full, "MENINGGAL_April 2021"), 
+             simple_map_plot(jakarta_full, "MENINGGAL_Mei 2021"), simple_map_plot(jakarta_full, "MENINGGAL_Juni 2021"), 
+             simple_map_plot(jakarta_full, "MENINGGAL_Juli 2021"), outer.margins=0, ncol=3)
 ```
+
+Alongside with the increase in the total number of confirmed cases across the months, the maps above showed us that the Total Death for each month has also been increasing.
+
+## Rates 
+
+This section shows us the rates that are calculated from the raw values:
+  
+  - Cumulative Confirmed Cases (POSITIF) rate per 1000 people in the population for each quarter
+  - Death to Confirmed Cases Ratio for each quarter
+  - Cumulative Confirmed Cases (POSITIF) rate per 1000 people in the population for each month
+  - Death to Confirmed Cases Ratio for each month
+  - Relative Risk Rate for each month
+  
 
 
 
@@ -483,6 +513,9 @@ tmap_arrange(jenksmap(jakarta_full_rates, "POSITIF_Maret 2020"), jenksmap(jakart
              jenksmap(jakarta_full_rates, "POSITIF_Mei 2021"), jenksmap(jakarta_full_rates, "POSITIF_Juni 2021"), 
              jenksmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
 ```
+
+From the maps above, we can observe that the Confirmed Cases(POSITIF) Rate per 1000 people in the population has been increasing to reaching the highest of 380.8 confirmed cases per 1000 people in July 2021.
+
 ### Plot Natural Breaks Classification Maps for all the months on Deaths (MENINGGAL) Rate
 
 The plots below shows the Natural Breaks Classification Maps for the Deaths Rates for all the months starting from *March 2020 to July 2021*
@@ -503,9 +536,12 @@ tmap_arrange(jenksmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), jenksmap(jaka
 
 ```
 
+As compared to the upward trend in the Confirmed Cases (POSITIF) Rate across the months, the Death (MENINGGAL) Rate has been decreasing to reach a low of 2.710. 
 
+  - This shows that the government's approach to treating COVID-19 patients and stabilizing their condition has been effective.
+  
 
-## Box Map
+## Percentile Map
 
 ### Creating helper functions
 
@@ -562,11 +598,6 @@ tmap_arrange(percentmap(jakarta_full_rates, "POSITIF_Maret 2020"), percentmap(ja
              percentmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
 ```
 
-```{r}
-test_var <- get.var("MENINGGAL_Maret 2020",jakarta_full_rates)
-quantile(test_var)
-
-```
 
 
 ### Plot Percentile Maps for all the months on Meninggal Rate
