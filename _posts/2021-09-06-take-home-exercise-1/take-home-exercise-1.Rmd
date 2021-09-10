@@ -543,6 +543,10 @@ As compared to the upward trend in the Confirmed Cases (POSITIF) Rate across the
 
 ## Percentile Map
 
+Percentile Maps are plotted to see how each area is ranked against other areas in terms of Cummulative COnfirmed Cases Rate and Death Rates
+
+  - This is to identify the riskiest areas to observe and analyze their Confirmed Cases Rate and Death Rate
+
 ### Creating helper functions
 
 ### Create a function to extract a variable as a vector 
@@ -598,7 +602,9 @@ tmap_arrange(percentmap(jakarta_full_rates, "POSITIF_Maret 2020"), percentmap(ja
              percentmap(jakarta_full_rates, "POSITIF_Juli 2021"), outer.margins=0, ncol=3)
 ```
 
-
+With reference to the Raw values plot above in the previous section, it is expected to see an increase in the number of confirmed cases.
+  
+  - This is evident in the observation where there are more areas moving into the 50% quantile and above
 
 ### Plot Percentile Maps for all the months on Meninggal Rate
 
@@ -617,6 +623,13 @@ tmap_arrange(percentmap(jakarta_full_rates, "MENINGGAL_Maret 2020"), percentmap(
              percentmap(jakarta_full_rates, "MENINGGAL_Mei 2021"), percentmap(jakarta_full_rates, "MENINGGAL_Juni 2021"), 
              percentmap(jakarta_full_rates, "MENINGGAL_Juli 2021"), outer.margins=0, ncol=3)
 ```
+
+It can be observed that there are lesser Oranges and Reds in the maps across the maps, but an increased amount of Blues.
+
+  - This is in line to what was visualized in the previous section where the Death Rates are observed to have dropped across the months.
+
+
+From the maps above, observe that March 2020's map is very unusual. Therefore, in the next section we will perform further analysis.
 
 ### Analyzing March(Maret) 2020 Death(MENINGGAL) Rate
 
