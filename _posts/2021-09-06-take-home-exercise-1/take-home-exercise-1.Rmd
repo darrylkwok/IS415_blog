@@ -1,7 +1,7 @@
 ---
 title: "Take-Home Exercise 1"
 description: |
-  A short description of the post.
+  This Post provides the in-depth Geospatial and Spatial-Temporal Analysis on DKI Jakarta's COVID-19 cases in its sub-district (kelurahans). It highlights the increase in the rate of Cummulative Confirmed Cases per 1000 people in the population and the ratio of deaths to the number of confirmed cases.
 author:
   - name: Darryl Kwok
     url: https://example.com/darrylkwok
