@@ -1,0 +1,259 @@
+---
+title: "In-Class Exercise 5"
+description: |
+  A short description of the post.
+author:
+  - name: Darryl Kwok
+    url: https://example.com/darrylkwok
+date: 09-13-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE, eval=TRUE, echo=TRUE, message=FALSE, error=FALSE, fig.retina=3}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Installing and Loading the R package
+
++ maptools is for creating spatial objects
++ sf is for importing geospatial data
++ raster is for creating raster object
++ spatstat is for performing SPPA
++ tmap is for plotting thematic maps
++ tidyverse is for data handling
+
+``` {r}
+packages = c('maptools', 'sf', 'raster', 'spatstat', 'tmap', 'tidyverse', 'plotly', 'ggthemes')
+for (p in packages){
+if(!require(p, character.only = T)){
+install.packages(p)
+}
+library(p,character.only = T)
+}
+```
+
+## Importing the Geospatial Data
+
+Importing Shapefile using *st_read()* of **sf** package.The output object is in tibble **sf** object class.
+
+```{r}
+mpsz_sf <- st_read(dsn = "data/shapefile", layer = "MP14_SUBZONE_WEB_PL")
+
+mpsz_sf
+```
+
+Projection is in *SVY21*.
+
+
+## Importing the aspatial data
+
+*read_rds()* of **readr** package is used instead of *readRDS()* of base R. This is because the output of *read_rds()* is a tibble object.
+
+```{r}
+CHAS <- read_rds("data/rds/CHAS.rds")
+childcare <- read_rds("data/rds/childcare.rds")
+```
+
+Note that there are some issues found in the childcare dataframe, because the Lat and Lng attributes should be in numeric data type. The coordinate fields seems to be in decimal degree. Therefore, this results in having assumed the WGS84 referencing system. 
+
+```{r}
+st_crs(CHAS)
+
+```
+
+## Converting the aspatial data into sf objects
+
+```{r}
+CHAS_sf <- st_as_sf(CHAS, coords = c("X_COORDINATE", "Y_COORDINATE"), crs = 3414)
+```
+
+Note: st_as_sf accepts coordinates that are in character data type, and converts it into the appropriate data type.
+
+We see that it is in decimal degree in the childcare data, therefore we know that it is 4326 projection system and we will transfrom it to 3414
+
+```{r}
+childcare_sf <- st_as_sf(childcare, coords = c("Lng", "Lat"), crs = 4326) %>%
+  st_transform(crs=3414)
+```
+
+
+## Plotting for initial review of the Geospatial data
+
+This is how we can check the projection system. If the points are plotted on somewhere random, it means that the projection system is wrong.
+
+All the darker points show that you have more than 1 childcare centers
+
+```{r}
+tmap_mode("view")
+
+tm_shape(childcare_sf) +
+  tm_dots(alpha = 0.4, col = "blue", size = 0.05) +
+tm_shape(CHAS_sf) + 
+  tm_dots(alpha = 0.4, col = "red", size = 0.05)
+```
+
+## Geospatial Data Wrangling
+
+### Convert sf objects to Spatial Classes
+
+```{r}
+childcare <- as_Spatial(childcare_sf)
+CHAS <- as_Spatial(CHAS_sf)
+mpsz <- as_Spatial(mpsz_sf)
+```
+
+### Convert Spatial Data into Spatial Objects
+
+Using *as.ppp()** of **maptools** package
+
+```{r}
+childcare_sp <- as(childcare, "SpatialPoints")
+CHAS_sp <- as(CHAS, "SpatialPoints")
+mpsz_sp <- as(mpsz, "SpatialPolygons")
+```
+
+### Convert Spatial Objects into ppp objects
+
+Using *as.ppp()* of **maptools** package
+
+```{r}
+childcare_ppp <- as(childcare_sp, "ppp")
+CHAS_ppp <- as(CHAS_sp, "ppp")
+```
+
+### Removing duplicate points using jitter
+
+If you check childcare_ppp and CHAS_ppp for duplicates using the any() and duplicated() function, you will see that it will return TRUE
+
+```{r}
+childcare_ppp_jit <- rjitter(childcare_ppp, retry=TRUE, nsim=1, drop=TRUE)
+
+any(duplicated(childcare_ppp_jit))
+```
+
+```{r}
+CHAS_ppp_jit <- rjitter(CHAS_ppp, retry=TRUE, nsim=1, drop=TRUE)
+
+any(duplicated(CHAS_ppp_jit))
+```
+
+### Extracting Punggol Planning Area
+
+Need a comma at the end to select all the columns since the statement before the comma is to select the rows
+
+```{r}
+pg <- mpsz[mpsz@data$PLN_AREA_N == "PUNGGOL",]
+```
+
+### Convert *pg*, which is a ***SpatialPolygonDataFrame** into **SpatialPolygonObject**, called *pg_sp*
+
+```{r}
+pg_sp <- as(pg, "SpatialPolygons")
+```
+
+### Convert *pg_sp* into a *owin* object
+
+```{r}
+pg_owin <- as(pg_sp, "owin")
+```
+
+### Extract spatial points within owin object
+
+Extract out the childcares and clinics that are within punggol.
+
+If you plot childcare_ppp_jit, you will only get the points. After extracting the points using the owin object, you will get the Punggol's Boundary and the points within Punggol
+
+```{r}
+childcare_pg <- childcare_ppp_jit[pg_owin]
+CHAS_pg <- CHAS_ppp_jit[pg_owin]
+```
+
+```{r}
+plot(childcare_pg)
+```
+
+## L-function
+
+```{r}
+L_childcare <- envelope(childcare_pg, Lest, nsim=99, rank=1, global=TRUE)
+```
+
+# Code chunk for plotting interactive L-function
+
+```{r}
+title <- "Pairwise Distance: L function"
+
+Lcsr_df <- as.data.frame(L_childcare)
+
+colour=c("#0D657D","#ee770d","#D3D3D3")
+csr_plot <- ggplot(Lcsr_df, aes(r, obs-r))+
+  # plot observed value
+  geom_line(colour=c("#4d4d4d"))+
+  geom_line(aes(r,theo-r), colour="red", linetype = "dashed")+
+  # plot simulation envelopes
+  geom_ribbon(aes(ymin=lo-r,ymax=hi-r),alpha=0.1, colour=c("#91bfdb")) +
+  xlab("Distance r (m)") +
+  ylab("L(r)-r") +
+  geom_rug(data=Lcsr_df[Lcsr_df$obs > Lcsr_df$hi,], sides="b", colour=colour[1])  +
+  geom_rug(data=Lcsr_df[Lcsr_df$obs < Lcsr_df$lo,], sides="b", colour=colour[2]) +
+  geom_rug(data=Lcsr_df[Lcsr_df$obs >= Lcsr_df$lo & Lcsr_df$obs <= Lcsr_df$hi,], sides="b", color=colour[3]) +
+  theme_tufte()+
+  ggtitle(title)
+
+text1<-"Significant clustering"
+text2<-"Significant segregation"
+text3<-"Not significant clustering/segregation"
+
+# the below conditional statement is required to ensure that the labels (text1/2/3) are assigned to the correct traces
+if (nrow(Lcsr_df[Lcsr_df$obs > Lcsr_df$hi,])==0){ 
+  if (nrow(Lcsr_df[Lcsr_df$obs < Lcsr_df$lo,])==0){ 
+    ggplotly(csr_plot, dynamicTicks=T) %>%
+      style(text = text3, traces = 4) %>%
+      rangeslider() 
+  }else if (nrow(Lcsr_df[Lcsr_df$obs >= Lcsr_df$lo & Lcsr_df$obs <= Lcsr_df$hi,])==0){ 
+    ggplotly(csr_plot, dynamicTicks=T) %>%
+      style(text = text2, traces = 4) %>%
+      rangeslider() 
+  }else {
+    ggplotly(csr_plot, dynamicTicks=T) %>%
+      style(text = text2, traces = 4) %>%
+      style(text = text3, traces = 5) %>%
+      rangeslider() 
+  }
+} else if (nrow(Lcsr_df[Lcsr_df$obs < Lcsr_df$lo,])==0){
+  if (nrow(Lcsr_df[Lcsr_df$obs >= Lcsr_df$lo & Lcsr_df$obs <= Lcsr_df$hi,])==0){
+    ggplotly(csr_plot, dynamicTicks=T) %>%
+      style(text = text1, traces = 4) %>%
+      rangeslider() 
+  } else{
+    ggplotly(csr_plot, dynamicTicks=T) %>%
+      style(text = text1, traces = 4) %>%
+      style(text = text3, traces = 5) %>%
+      rangeslider()
+  }
+} else{
+  ggplotly(csr_plot, dynamicTicks=T) %>%
+    style(text = text1, traces = 4) %>%
+    style(text = text2, traces = 5) %>%
+    style(text = text3, traces = 6) %>%
+    rangeslider()
+  }
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

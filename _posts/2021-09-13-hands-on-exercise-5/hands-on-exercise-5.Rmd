@@ -1,0 +1,152 @@
+---
+title: "Hands-on Exercise 5"
+description: |
+  A short description of the post.
+author:
+  - name: Darryl Kwok
+    url: https://example.com/darrylkwok
+date: 09-13-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE, eval=TRUE, echo=TRUE, message=FALSE, error=FALSE, fig.retina=3}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Installing and launching the R packages
+
+```{r}
+packages = c('sp', 'rgdal', 'spNetwork', 'tmap')
+for (p in packages){
+if(!require(p, character.only = T)){
+install.packages(p)
+}
+library(p,character.only = T)
+}
+```
+
+## Importing the Data
+
+```{r}
+network <- readOGR(dsn="data/geospatial", 
+                   layer="Punggol_St",
+                   verbose = FALSE)
+childcare <- readOGR(dsn="data/geospatial",
+                     layer="Punggol_CC",
+                     verbose = FALSE)
+```
+
+Examine the structure of the output SpatialDataFrame 
+
+```{r eval=FALSE}
+str(network)
+str(childcare)
+```
+
+Assign EPSG code to the SpatialDataFrames
+
+```{r}
+childcare <-spTransform(childcare, CRS("+init=epsg:3414"))
+network <- spTransform(network,CRS("+init=epsg:3414"))
+```
+
+Visualise the Data
+
+```{r}
+plot(network)
+plot(childcare,add=T,col='red',pch = 19)
+```
+
+Visualise the Data interactively
+```{r}
+tmap_mode('view')
+tm_shape(childcare)+
+  tm_dots() +
+tm_shape(network)+
+  tm_lines()
+
+```
+
+
+# Netowrk Constrained KDE (NetKDE Analysis)
+
+## Preparing the lixels objects
+
+```{r}
+lixels <- lixelize_lines(network,700,mindist = 350)
+```
+
+
+## Generating line centre points
+
+```{r}
+samples <- lines_center(lixels)
+```
+
+## Performing NetKDE
+```{r}
+densities <- nkde(network, 
+                  events = childcare,
+                  w = rep(1,nrow(childcare)),
+                  samples = samples,
+                  kernel_name = "quartic",
+                  bw = 300, 
+                  div= "bw", 
+                  method = "simple", 
+                  digits = 1, 
+                  tol = 1,
+                  grid_shape = c(1,1), 
+                  max_depth = 8,
+                  agg = 5, #we aggregate events within a 5m radius (faster calculation)
+                  sparse = TRUE,
+                  verbose = FALSE)
+```
+
+## Visualising NetKDE
+
+Before we can visualise the NetKDE values, we need to insert the computed density values
+
+```{r}
+samples$density <- densities
+lixels$density <- densities
+```
+
+Since the SVY21 projection system is in metres, the scale of the computed density values are very small (i.e. 0.0000000005). Hence we rescale it from metres to kilometers
+```{r}
+samples$density <- samples$density*1000
+lixels$density <- lixels$density*1000
+```
+
+
+```{r}
+tmap_mode('view')
+tm_shape(lixels)+
+  tm_lines(col="density")+
+tm_shape(childcare)+
+  tm_dots()
+```
+
+# Network COnstrained G- and K- function Analysis
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
