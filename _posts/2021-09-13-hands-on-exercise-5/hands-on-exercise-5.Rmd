@@ -13,7 +13,7 @@ output:
 
 
 ```{r setup, include=FALSE, eval=TRUE, echo=TRUE, message=FALSE, error=FALSE, fig.retina=3}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Installing and launching the R packages
@@ -61,6 +61,7 @@ plot(childcare,add=T,col='red',pch = 19)
 ```
 
 Visualise the Data interactively
+
 ```{r}
 tmap_mode('view')
 tm_shape(childcare)+
@@ -71,7 +72,7 @@ tm_shape(network)+
 ```
 
 
-# Netowrk Constrained KDE (NetKDE Analysis)
+# Network Constrained KDE (NetKDE Analysis)
 
 ## Preparing the lixels objects
 
@@ -87,6 +88,7 @@ samples <- lines_center(lixels)
 ```
 
 ## Performing NetKDE
+
 ```{r}
 densities <- nkde(network, 
                   events = childcare,
@@ -115,6 +117,7 @@ lixels$density <- densities
 ```
 
 Since the SVY21 projection system is in metres, the scale of the computed density values are very small (i.e. 0.0000000005). Hence we rescale it from metres to kilometers
+
 ```{r}
 samples$density <- samples$density*1000
 lixels$density <- lixels$density*1000
@@ -130,6 +133,26 @@ tm_shape(childcare)+
 ```
 
 # Network COnstrained G- and K- function Analysis
+
+```{r}
+kfun_childcare <- kfunctions(network, 
+                             childcare,
+                             start = 0, 
+                             end = 1000, 
+                             step = 50, 
+                             width = 50, 
+                             nsim = 50, 
+                             resolution = 50,
+                             verbose = FALSE, 
+                             conf_int = 0.05)
+```
+
+
+Visualise the ggplot2 object of the k-function
+
+```{r}
+kfun_childcare$plotk
+```
 
 
 
