@@ -12,9 +12,49 @@ output:
 ---
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+```{r setup, include=FALSE, eval=TRUE, echo=TRUE, message=FALSE, error=FALSE, fig.retina=3}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+## Installing and launching the R packages
+
+```{r}
+packages = c('sp', 'rgdal', 'spNetwork', 'tmap', 'maptools', 'sf', 'raster', 'spatstat', 'tidyverse', 'plotly', 'ggthemes')
+for (p in packages){
+if(!require(p, character.only = T)){
+install.packages(p)
+}
+library(p,character.only = T)
+}
 ```
 
 
+
+# Data
+
+## Import Geospatial Data
+
+```{r}
+train_services_sf <- st_read(dsn="data/geospatial", layer="MRTLRTStnPtt")
+mpsz_sf <- st_read(dsn = "data/geospatial", layer = "MP14_SUBZONE_WEB_PL")
+```
+## Import Aspatial Data
+```{r}
+june_2019 <- read_csv("data/aspatial/30062019.csv")
+june_2021 <- read_csv("data/aspatial/30062021.csv")
+hotels <- read_csv("data/aspatial/hotels.csv")
+tourism <- read_csv("data/aspatial/tourism.csv")
+```
+
+
+
+## Visualise the Geospatial Data
+```{r}
+tm_shape(mpsz_sf) + 
+  tm_polygons() +
+tm_shape(train_services_sf) +
+  tm_dots(col="red")
+```
 
