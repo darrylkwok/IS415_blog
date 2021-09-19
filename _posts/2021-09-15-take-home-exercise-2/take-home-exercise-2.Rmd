@@ -40,21 +40,194 @@ library(p,character.only = T)
 train_services_sf <- st_read(dsn="data/geospatial", layer="MRTLRTStnPtt")
 mpsz_sf <- st_read(dsn = "data/geospatial", layer = "MP14_SUBZONE_WEB_PL")
 ```
+
+## Geospatial Data Wrangling
+
+### Check the detailed information of the geospatial data
+
+```{r}
+st_crs(train_services_sf)
+st_crs(mpsz_sf)
+```
+
+We can see from these 2 st_crs() outputs that, the projections are in SVY21, however the EPSG code is 9001. The correct EPSG code is 3414. 
+
+Therefore, we will assign the correct EPSG code.
+
+```{r}
+train_services_sf <- st_set_crs(train_services_sf, 3414)
+mpsz_sf <- st_set_crs(mpsz_sf, 3414)
+```
+
+Check the crs of the 2 geospatial data again to confirm the changes
+
+```{r}
+st_crs(train_services_sf)
+st_crs(mpsz_sf)
+```
+
+Check if the geometries are valid for the train_services_sf 
+
+```{r}
+length(which(st_is_valid(train_services_sf) == FALSE))
+```
+
+From the above output, we can see that there are no invalid geometries for the train_services_sf
+
+Check if the geometries are valid for the mpsz_sf
+
+```{r}
+length(which(st_is_valid(mpsz_sf) == FALSE))
+```
+
+From the above output, we can see that there are 9 invalid geometries in the mpsz data
+
+Therefore, we will handle the invalid geometries and check if the changes are made.
+
+```{r}
+mpsz_sf <- st_make_valid(mpsz_sf)
+length(which(st_is_valid(mpsz_sf) == FALSE))
+
+```
+
+### Visualise the Location of the Train Services on the Singapore Map
+
+```{r}
+tmap_mode('view')
+
+tm_shape(mpsz_sf) + 
+  tm_polygons() +
+tm_shape(train_services_sf) +
+  tm_dots(col="red", size=0.1)
+
+tmap_mode('plot')
+```
+
 ## Import Aspatial Data
+
 ```{r}
 june_2019 <- read_csv("data/aspatial/30062019.csv")
 june_2021 <- read_csv("data/aspatial/30062021.csv")
 hotels <- read_csv("data/aspatial/hotels.csv")
 tourism <- read_csv("data/aspatial/tourism.csv")
+``` 
+
+## Aspatial Data Wrangling
+
+### Learn more about each of the aspatial datasets
+
+```{r}
+glimpse(june_2019)
+```
+
+```{r}
+glimpse(june_2021)
+```
+
+```{r}
+glimpse(hotels)
+```
+
+```{r}
+glimpse(tourism)
+```
+
+After using the glimpse() function on all the aspatial data, there are a few observations:
+
+  - All of the data uses Longitude and Latitude or Lng and Lat for the column names
+  - The Longitude and Latitude of all the data are projected in the 4326 projection system
+  
+
+### Check if there are rows that have missing values in june_2019 dataframe longtitude or latitude columns
+
+```{r}
+sum(is.na(june_2019$latitude))
+sum(is.na(june_2019$longitude))
+```
+
+### Check if there are rows that have missing values in june_2021 dataframe longtitude or latitude columns
+
+```{r}
+sum(is.na(june_2021$latitude))
+sum(is.na(june_2021$longitude))
+```
+
+### Check if there are rows that have missing values in hotels dataframe longtitude or latitude columns
+
+```{r}
+sum(is.na(hotels$Lng))
+sum(is.na(hotels$Lat))
+```
+
+### Check if there are rows that have missing values in tourism dataframe longtitude or latitude columns
+
+There are 2 geographic coordinates in the tourism dataframe
+
+```{r}
+sum(is.na(tourism$LONGTITUDE))
+sum(is.na(tourism$LATITUDE))
+```
+```{r}
+sum(is.na(tourism$Lat))
+sum(is.na(tourism$Lng))
+```
+
+We can see that the LONGTITUDE and LATITUDE columns contains missing values but the Lat and Lng columns contains no missing values.
+
+### Extract the row that contains missing values in the LONGTITUDE and LATITUDE columns
+```{r}
+tourism[(is.na(tourism$LONGTITUDE) | tourism$LONGTITUDE=="" | is.na(tourism$LATITUDE) | tourism$LATITUDE == ""), ]
+```
+
+Although Crusises from Singapore is a tourism activity, it does not belong to a specific location on the map. Therefore we will remove it from the dataframe. This is because having 0,0 coordinates can many different meanings in Geospatial Data
+
+```{r}
+tourism <- tourism[!(is.na(tourism$LONGTITUDE) | tourism$LONGTITUDE=="" | is.na(tourism$LATITUDE) | tourism$LATITUDE == ""), ]
+```
+
+Check if the row is removed from the dataframe
+
+```{r}
+tourism[(is.na(tourism$LONGTITUDE) | tourism$LONGTITUDE=="" | is.na(tourism$LATITUDE) | tourism$LATITUDE == ""), ]
 ```
 
 
+### Convert the R Dataframes into sf objects and transform the coordinate projection system
 
-## Visualise the Geospatial Data
+Steps Taken:
+
+  - Convert the R Dataframes into an sf object by defining the columns and the projection system
+  - Then transform the projection system to the correct one
+
 ```{r}
+june_2019_sf <- st_as_sf(june_2019, coords = c("longitude", "latitude"), crs = 4326) %>%
+  st_transform(crs=3414)
+
+june_2021_sf <- st_as_sf(june_2021, coords = c("longitude", "latitude"), crs = 4326) %>%
+  st_transform(crs=3414)
+
+hotels_sf <- st_as_sf(hotels, coords = c("Lng", "Lat"), crs = 4326) %>%
+  st_transform(crs=3414)
+
+tourism_sf <- st_as_sf(tourism, coords = c("Lng", "Lat"), crs = 4326) %>%
+  st_transform(crs=3414)
+```
+
+
+```{r}
+
+tmap_mode('view')
+
 tm_shape(mpsz_sf) + 
   tm_polygons() +
-tm_shape(train_services_sf) +
-  tm_dots(col="red")
+tm_shape(tourism_sf) +
+  tm_dots(col="red", size=0.1)
+
+tmap_mode('plot')
 ```
+
+```
+
+
+
 
