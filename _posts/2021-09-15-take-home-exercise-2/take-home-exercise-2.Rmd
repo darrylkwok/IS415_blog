@@ -175,6 +175,7 @@ sum(is.na(tourism$Lng))
 We can see that the LONGTITUDE and LATITUDE columns contains missing values but the Lat and Lng columns contains no missing values.
 
 ### Extract the row that contains missing values in the LONGTITUDE and LATITUDE columns
+
 ```{r}
 tourism[(is.na(tourism$LONGTITUDE) | tourism$LONGTITUDE=="" | is.na(tourism$LATITUDE) | tourism$LATITUDE == ""), ]
 ```
@@ -215,7 +216,6 @@ tourism_sf <- st_as_sf(tourism, coords = c("Lng", "Lat"), crs = 4326) %>%
 
 
 ```{r}
-
 tmap_mode('view')
 
 tm_shape(mpsz_sf) + 
