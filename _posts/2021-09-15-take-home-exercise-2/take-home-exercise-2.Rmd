@@ -39,31 +39,35 @@ library(p,character.only = T)
 ```{r}
 train_services_sf <- st_read(dsn="data/geospatial", layer="MRTLRTStnPtt")
 mpsz_sf <- st_read(dsn = "data/geospatial", layer = "MP14_SUBZONE_WEB_PL")
+sg_sf <- st_read(dsn = "data/geospatial", layer="CostalOutline")
 ```
 
-## Geospatial Data Wrangling
+## Geospatial Data Preparation
 
 ### Check the detailed information of the geospatial data
 
 ```{r}
 st_crs(train_services_sf)
 st_crs(mpsz_sf)
+st_crs(sg_sf)
 ```
 
-We can see from these 2 st_crs() outputs that, the projections are in SVY21, however the EPSG code is 9001. The correct EPSG code is 3414. 
+We can see from these 3 st_crs() outputs that, the projections are in SVY21, however the EPSG code is 9001. The correct EPSG code is 3414. 
 
 Therefore, we will assign the correct EPSG code.
 
 ```{r}
 train_services_sf <- st_set_crs(train_services_sf, 3414)
 mpsz_sf <- st_set_crs(mpsz_sf, 3414)
+sg_sf <- st_set_crs(sg_sf, 3414)
 ```
 
-Check the crs of the 2 geospatial data again to confirm the changes
+Check the crs of the 3 geospatial data again to confirm the changes
 
 ```{r}
 st_crs(train_services_sf)
 st_crs(mpsz_sf)
+st_crs(sg_sf)
 ```
 
 Check if the geometries are valid for the train_services_sf 
@@ -87,21 +91,35 @@ Therefore, we will handle the invalid geometries and check if the changes are ma
 ```{r}
 mpsz_sf <- st_make_valid(mpsz_sf)
 length(which(st_is_valid(mpsz_sf) == FALSE))
-
 ```
+
+Check if the geometries are valid for the sg_sf
+
+```{r}
+length(which(st_is_valid(sg_sf) == FALSE))
+```
+
+From the above output, we can see that there are 1 invalid geometries in the sg data
+
+Therefore, we will handle the invalid geometries and check if the changes are made.
+
+```{r}
+sg_sf <- st_make_valid(sg_sf)
+length(which(st_is_valid(sg_sf) == FALSE))
+```
+
 
 ### Visualise the Location of the Train Services on the Singapore Map
 
 ```{r}
 tmap_mode('view')
 
-tm_shape(mpsz_sf) + 
-  tm_polygons() +
 tm_shape(train_services_sf) +
   tm_dots(col="red", size=0.1)
 
 tmap_mode('plot')
 ```
+
 
 ## Import Aspatial Data
 
@@ -112,7 +130,7 @@ hotels <- read_csv("data/aspatial/hotels.csv")
 tourism <- read_csv("data/aspatial/tourism.csv")
 ``` 
 
-## Aspatial Data Wrangling
+## Aspatial Data Preparation
 
 ### Learn more about each of the aspatial datasets
 
@@ -226,7 +244,376 @@ tm_shape(tourism_sf) +
 tmap_mode('plot')
 ```
 
+
+## Geospatial and Aspatial Data Wrangling 
+
+### Converting sf dataframes into sp Spatial Class
+
+```{r}
+mpsz <- as_Spatial(mpsz_sf)
+sg <- as_Spatial(sg_sf)
+train_services <-as_Spatial(train_services_sf)
+june_2019 <- as_Spatial(june_2019_sf)
+june_2021 <- as_Spatial(june_2021_sf)
+hotels <- as_Spatial(hotels_sf)
+tourism <- as_Spatial(tourism_sf)
 ```
+
+Display the information about the Spatial Classes 
+
+```{r}
+mpsz
+```
+
+```{r}
+sg
+```
+
+```{r}
+train_services
+```
+
+```{r}
+june_2019
+```
+
+```{r}
+june_2021
+```
+
+```{r}
+hotels
+```
+
+```{r}
+tourism
+```
+
+### Converting the Spatial class into generic sp format
+
+```{r}
+mpsz_sp <- as(mpsz, "SpatialPolygons")
+sg_sp <- as(sg, "SpatialPolygons")
+train_services_sp <-as(train_services, "SpatialPoints")
+june_2019_sp <- as(june_2019, "SpatialPoints")
+june_2021_sp <- as(june_2021, "SpatialPoints")
+hotels_sp <- as(hotels, "SpatialPoints")
+tourism_sp <- as(tourism, "SpatialPoints")
+```
+
+Display the information about the sp objects
+
+```{r}
+mpsz_sp
+```
+
+```{r}
+sg_sp
+```
+
+```{r}
+train_services_sp
+```
+
+```{r}
+june_2019_sp
+```
+
+```{r}
+june_2021_sp
+```
+
+```{r}
+hotels_sp
+```
+
+```{r}
+tourism_sp
+```
+
+### Converting the sp objects into spatstat's ppp format
+
+Difference between sp classes and ppp objects:
+
+  - ppp objects include the boundary of the region where the point data have been observed, while sp classes do not
+
+```{r}
+train_services_ppp <-as(train_services_sp, "ppp")
+june_2019_ppp <- as(june_2019_sp, "ppp")
+june_2021_ppp <- as(june_2021_sp, "ppp")
+hotels_ppp <- as(hotels_sp, "ppp")
+tourism_ppp <- as(tourism_sp, "ppp")
+```
+
+Take a quick look at all the ppp objects summary information
+
+```{r}
+summary(train_services_ppp)
+```
+
+For *train_services_ppp* there are no duplicated points
+
+```{r}
+summary(june_2019_ppp)
+```
+
+For *june_2019_ppp* there are duplicated points
+
+```{r}
+summary(june_2021_ppp)
+```
+
+For *june_2021_ppp* there are duplicated points
+
+```{r}
+summary(hotels_ppp)
+```
+
+For *hotels_ppp* there are duplicated points
+
+```{r}
+summary(tourism_ppp)
+```
+
+For *tourism_ppp* there are duplicated points
+
+From the above summaries, we can see that other than *train_services_ppp*, all the other ppp objects contain duplicated points.
+
+### Handling duplicated points
+
+Confirm that there are duplicated points in the ppp objects using the **any()** and **duplicated()** functions
+
+```{r}
+any(duplicated(train_services_ppp)) 
+```
+
+```{r}
+any(duplicated(june_2019_ppp)) 
+```
+
+```{r}
+any(duplicated(june_2021_ppp)) 
+```
+
+```{r}
+any(duplicated(hotels_ppp)) 
+```
+
+```{r}
+any(duplicated(tourism_ppp)) 
+```
+
+It is always unclear on how to handle duplicates with Spatial Point Pattern Analysis.
+
+One of the major consideration is that, if we delete the duplicate points, we might ignore things such as repeat occurrences at a certain place. It will cause us to lost valuable data.
+
+Therefore, we will make each point "unique" by adding an attribute to the data that contains duplicate points:
+
+  - *june_2019_ppp*
+  - *june_2021_ppp*
+  - *hotels_ppp*
+  - *tourism_ppp*
+
+```{r}
+june_2019_ppp_jit <- rjitter(june_2019_ppp, 
+                             retry=TRUE, 
+                             nsim=1, 
+                             drop=TRUE)
+
+june_2021_ppp_jit <- rjitter(june_2021_ppp, 
+                             retry=TRUE, 
+                             nsim=1, 
+                             drop=TRUE)
+
+hotels_ppp_jit <- rjitter(hotels_ppp, 
+                             retry=TRUE, 
+                             nsim=1, 
+                             drop=TRUE)
+
+tourism_ppp_jit <- rjitter(tourism_ppp, 
+                             retry=TRUE, 
+                             nsim=1, 
+                             drop=TRUE)
+```
+
+After using jitter to the duplicated points, we will check if the changes were effected.
+
+```{r}
+any(duplicated(june_2019_ppp_jit)) 
+```
+
+```{r}
+any(duplicated(june_2021_ppp_jit)) 
+```
+
+```{r}
+any(duplicated(hotels_ppp_jit)) 
+```
+
+```{r}
+any(duplicated(tourism_ppp_jit)) 
+```
+## Creating an owin object
+
+Point pattern is defined as a series of events in a given area or window of observation. Therefore, it is important to define the observation window or area.
+
+sg_sp is the CoastalOutline of Singapore. This will be the observation window we will be using.
+
+```{r}
+sg_owin <- as(sg_sp, "owin")
+```
+
+Display the output object using plot()
+
+```{r}
+plot(sg_owin)
+```
+
+
+## Combine Spatial Point Events and owin object
+
+We will extract events that are specific to Singapore.This events include:
+
+  - Airbnb Listings in June 2019
+  - Airbnb Listing in June 2021
+  - Tourism Attractions
+  - Hotel Locations
+  - Train services
+
+```{r}
+june_2019_SG_ppp = june_2019_ppp[sg_owin]
+
+summary(june_2019_SG_ppp)
+```
+
+```{r}
+june_2021_SG_ppp = june_2021_ppp[sg_owin]
+
+summary(june_2021_SG_ppp)
+```
+
+```{r}
+tourism_SG_ppp = tourism_ppp[sg_owin]
+
+summary(tourism_SG_ppp)
+```
+
+```{r}
+hotels_SG_ppp = hotels_ppp[sg_owin]
+
+summary(hotels_SG_ppp)
+```
+
+```{r}
+train_services_SG_ppp = train_services_ppp[sg_owin]
+
+summary(train_services_SG_ppp)
+```
+
+Visualise each of the newly derived ppp objects that are confined to Singapore's boundaries
+
+```{r}
+plot(june_2019_SG_ppp)
+```
+
+```{r}
+plot(june_2021_SG_ppp)
+```
+
+```{r}
+plot(tourism_SG_ppp)
+```
+
+```{r}
+plot(hotels_SG_ppp)
+```
+
+```{r}
+plot(train_services_SG_ppp)
+```
+
+# Exploratory Spatial Data Analysis
+
+## Kernel Density Estimation
+
+**We want to compute number of points per square kilometer**
+
+### Convert the unit of measurement to kilometers 
+
+Since SVY21 uses meters as a unit of measurement, we will convert it to kilometers using the rescale() function
+
+```{r}
+june_2019_SG_ppp_km <- rescale(june_2019_SG_ppp, 1000, 'km')
+june_2021_SG_ppp_km <- rescale(june_2021_SG_ppp, 1000, 'km')
+tourism_SG_ppp_km <- rescale(tourism_SG_ppp, 1000, 'km')
+hotels_SG_ppp_km <- rescale(hotels_SG_ppp, 1000, 'km')
+train_services_SG_ppp_km <- rescale(train_services_SG_ppp, 1000, 'km')
+```
+
+### Compute Kernel Density Estimation using automatic bandwidth selection method
+
+```{r}
+kde_june_2019_SG_bw <- density(june_2019_SG_ppp_km,
+                              sigma=bw.diggle,
+                              edge=TRUE,
+                            kernel="gaussian") 
+
+kde_june_2021_SG_bw <- density(june_2021_SG_ppp_km,
+                              sigma=bw.diggle,
+                              edge=TRUE,
+                            kernel="gaussian")
+
+kde_tourism_SG_bw <- density(tourism_SG_ppp_km,
+                              sigma=bw.diggle,
+                              edge=TRUE,
+                            kernel="gaussian")
+
+kde_hotels_SG_bw <- density(hotels_SG_ppp_km,
+                              sigma=bw.diggle,
+                              edge=TRUE,
+                            kernel="gaussian")
+
+kde_train_services_SG_bw <- density(train_services_SG_ppp_km,
+                              sigma=bw.diggle,
+                              edge=TRUE,
+                            kernel="gaussian")
+```
+
+### Plot the Kernel Density Estimation for:
+  - Airbnb Listings in June 2019
+  - Airbnb Listing in June 2021
+  - Tourism Attractions
+  - Hotel Locations
+  - Train services
+
+
+```{r}
+plot(kde_june_2019_SG_bw)
+```
+
+```{r}
+plot(kde_june_2021_SG_bw)
+```
+
+```{r}
+plot(kde_tourism_SG_bw)
+```
+
+```{r}
+plot(kde_hotels_SG_bw)
+```
+
+```{r}
+plot(kde_train_services_SG_bw)
+```
+
+
+
+
+
+
+
+
 
 
 
