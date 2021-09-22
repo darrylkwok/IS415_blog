@@ -554,27 +554,27 @@ train_services_SG_ppp_km <- rescale(train_services_SG_ppp, 1000, 'km')
 
 ```{r}
 kde_june_2019_SG_bw <- density(june_2019_SG_ppp_km,
-                              sigma=bw.diggle,
+                              sigma=bw.ppl,
                               edge=TRUE,
                             kernel="gaussian") 
 
 kde_june_2021_SG_bw <- density(june_2021_SG_ppp_km,
-                              sigma=bw.diggle,
+                              sigma=bw.ppl,
                               edge=TRUE,
                             kernel="gaussian")
 
 kde_tourism_SG_bw <- density(tourism_SG_ppp_km,
-                              sigma=bw.diggle,
+                              sigma=bw.ppl,
                               edge=TRUE,
                             kernel="gaussian")
 
 kde_hotels_SG_bw <- density(hotels_SG_ppp_km,
-                              sigma=bw.diggle,
+                              sigma=bw.ppl,
                               edge=TRUE,
                             kernel="gaussian")
 
 kde_train_services_SG_bw <- density(train_services_SG_ppp_km,
-                              sigma=bw.diggle,
+                              sigma=bw.ppl,
                               edge=TRUE,
                             kernel="gaussian")
 ```
@@ -586,6 +586,10 @@ kde_train_services_SG_bw <- density(train_services_SG_ppp_km,
   - Hotel Locations
   - Train services
 
+
+```{r}
+plot(kde_june_2019_SG_bw)
+```
 
 ```{r}
 plot(kde_june_2019_SG_bw)
@@ -606,6 +610,155 @@ plot(kde_hotels_SG_bw)
 ```{r}
 plot(kde_train_services_SG_bw)
 ```
+
+### Converting KDE output into RasterLayer Object
+
+The steps taken will be:
+
+  - Convert the KDE outputs into a SpatialGridDataFrame
+  - Convert the SpatialGridDataFrame into RasterLayer objects
+
+In order for us to use the tmap package to map the RasterLayer objects, we have to include the CRS information.
+
+Since we rescaled the coordinates to kilometers earlier, we have to rescale it back to meters in order for it to match the SVY21's unit of measurement of meters.
+
+```{r}
+
+kde_june_2019_SG_bw_raster <- kde_june_2019_SG_bw %>% 
+  rescale(., 0.001, "m") %>%
+  as.SpatialGridDataFrame.im() %>% 
+  raster()
+
+kde_june_2021_SG_bw_raster <- kde_june_2021_SG_bw %>% 
+  rescale(., 0.001, "m") %>%
+  as.SpatialGridDataFrame.im() %>% 
+  raster()
+
+kde_hotels_SG_bw_raster <- kde_hotels_SG_bw %>% 
+  rescale(., 0.001, "m") %>%
+  as.SpatialGridDataFrame.im() %>% 
+  raster()
+
+kde_tourism_SG_bw_raster <- kde_tourism_SG_bw %>% 
+  rescale(., 0.001, "m") %>%
+  as.SpatialGridDataFrame.im() %>% 
+  raster()
+
+kde_train_services_SG_bw_raster <- kde_train_services_SG_bw %>% 
+  rescale(., 0.001, "m") %>%
+  as.SpatialGridDataFrame.im() %>% 
+  raster()
+```
+
+Check the properties of the RasterLayer Objects
+
+```{r}
+kde_june_2019_SG_bw_raster
+```
+
+
+```{r}
+kde_june_2021_SG_bw_raster
+```
+
+
+```{r}
+kde_hotels_SG_bw_raster
+```
+
+
+```{r}
+kde_tourism_SG_bw_raster
+```
+
+
+```{r}
+kde_train_services_SG_bw_raster
+```
+
+From the above outputs, we can see that the CRS property of the RasterLayer Objects are NA.
+
+### Assigning Projection Systems
+
+Assign CRS 3414 to all the RasterLayer objects and check the outputs
+
+```{r}
+projection(kde_june_2019_SG_bw_raster) <- CRS('+init=EPSG:3414')
+kde_june_2019_SG_bw_raster
+```
+
+```{r}
+projection(kde_june_2021_SG_bw_raster) <- CRS('+init=EPSG:3414')
+kde_june_2021_SG_bw_raster
+```
+
+```{r}
+projection(kde_hotels_SG_bw_raster) <- CRS('+init=EPSG:3414')
+kde_hotels_SG_bw_raster
+```
+
+```{r}
+projection(kde_tourism_SG_bw_raster) <- CRS('+init=EPSG:3414')
+kde_tourism_SG_bw_raster
+```
+
+```{r}
+projection(kde_train_services_SG_bw_raster) <- CRS('+init=EPSG:3414')
+kde_train_services_SG_bw_raster
+```
+Create a function to plot the Density Maps
+
+```{r}
+density_map <- function(raster_object, mtitle) {
+  tm_basemap('OpenStreetMap') +
+tm_shape(raster_object) +
+  tm_raster('v') + 
+  tm_layout(legend.position = c('right', 'bottom'), 
+            frame = FALSE, 
+            main.title = mtitle,
+            main.title.position = 'center',
+            main.title.size = 1)
+
+} 
+```
+
+
+```{r}
+june_2019_dmap <- density_map(kde_june_2019_SG_bw_raster, mtitle = "June 2019 SG Airbnb Listings Density Map")
+june_2021_dmap <- density_map(kde_june_2021_SG_bw_raster, mtitle = "June 2021 SG Airbnb Listings Density Map")
+hotels_dmap <- density_map(kde_hotels_SG_bw_raster, mtitle = "SG Hotels Density Map")
+tourism_dmap <- density_map(kde_tourism_SG_bw_raster, mtitle = "SG Tourism Attractions Density Map")
+train_services_dmap <- density_map(kde_train_services_SG_bw_raster, mtitle = "SG Train Services Density Map")
+```
+
+```{r}
+june_2019_dmap
+```
+
+```{r}
+june_2021_dmap
+```
+
+```{r}
+hotels_dmap
+```
+
+```{r}
+tourism_dmap
+```
+
+```{r}
+train_services_dmap
+```
+
+
+
+
+
+
+
+
+
 
 
 
