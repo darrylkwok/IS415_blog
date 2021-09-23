@@ -232,19 +232,6 @@ tourism_sf <- st_as_sf(tourism, coords = c("Lng", "Lat"), crs = 4326) %>%
   st_transform(crs=3414)
 ```
 
-
-```{r}
-tmap_mode('view')
-
-tm_shape(mpsz_sf) + 
-  tm_polygons() +
-tm_shape(tourism_sf) +
-  tm_dots(col="red", size=0.1)
-
-tmap_mode('plot')
-```
-
-
 ## Geospatial and Aspatial Data Wrangling 
 
 ### Converting sf dataframes into sp Spatial Class
@@ -414,6 +401,8 @@ Therefore, we will make each point "unique" by adding an attribute to the data t
   - *hotels_ppp*
   - *tourism_ppp*
 
+This method is calling **jittering**
+
 ```{r}
 june_2019_ppp_jit <- rjitter(june_2019_ppp, 
                              retry=TRUE, 
@@ -481,25 +470,25 @@ We will extract events that are specific to Singapore.This events include:
   - Train services
 
 ```{r}
-june_2019_SG_ppp = june_2019_ppp[sg_owin]
+june_2019_SG_ppp = june_2019_ppp_jit[sg_owin]
 
 summary(june_2019_SG_ppp)
 ```
 
 ```{r}
-june_2021_SG_ppp = june_2021_ppp[sg_owin]
+june_2021_SG_ppp = june_2021_ppp_jit[sg_owin]
 
 summary(june_2021_SG_ppp)
 ```
 
 ```{r}
-tourism_SG_ppp = tourism_ppp[sg_owin]
+tourism_SG_ppp = tourism_ppp_jit[sg_owin]
 
 summary(tourism_SG_ppp)
 ```
 
 ```{r}
-hotels_SG_ppp = hotels_ppp[sg_owin]
+hotels_SG_ppp = hotels_ppp_jit[sg_owin]
 
 summary(hotels_SG_ppp)
 ```
@@ -720,6 +709,7 @@ tm_shape(raster_object) +
             main.title.size = 1)
 
 } 
+
 ```
 
 
@@ -729,10 +719,6 @@ june_2021_dmap <- density_map(kde_june_2021_SG_bw_raster, mtitle = "June 2021 SG
 hotels_dmap <- density_map(kde_hotels_SG_bw_raster, mtitle = "SG Hotels Density Map")
 tourism_dmap <- density_map(kde_tourism_SG_bw_raster, mtitle = "SG Tourism Attractions Density Map")
 train_services_dmap <- density_map(kde_train_services_SG_bw_raster, mtitle = "SG Train Services Density Map")
-```
-
-```{r}
-june_2019_dmap
 ```
 
 ```{r}
@@ -751,15 +737,385 @@ tourism_dmap
 train_services_dmap
 ```
 
+## Kernel Density Map vs Point Map
+
+There are a few advantages that Kernel Density Map has over Point Map.
+
+  - Firstly, Kernel density z
+  estimate smooths the points in a given area, creating a continuous surface of density estimations. However, point map only shows the inidividual points that are concentrated within an area, and only can be observed quantitatively.
+  
+  - Secondly, kernel density map makes use of the inverse-distance weighted counts of the points. These weighted counts are used to represent the concentration of points at a specific location. This feature of kernel density map is unable to be replicated using point map.
 
 
 
+# Second-order Spatial Point Patterns Analysis
+
+## Prepare specific subzones for analysis
+
+Due to the intensive computational power needed to conduct Second Order Analysis on the whole of Singapore, we select only a few subzones for analysis
+
+  - DOWNTOWN CORE
+  - GEYLANG
+  - JURONG WEST
+  - NEWTON
+  - HOUGANG 
+
+```{r}
+mpsz_sf$STUDY_AREA[(mpsz_sf$PLN_AREA_N=='DOWNTOWN CORE') | (mpsz_sf$PLN_AREA_N=='GEYLANG') | (mpsz_sf$PLN_AREA_N=='JURONG WEST') | (mpsz_sf$PLN_AREA_N=='NEWTON') | (mpsz_sf$PLN_AREA_N=='HOUGANG')] = "Y"
+mpsz_sf$STUDY_AREA[is.na(mpsz_sf$STUDY_AREA)] = 'N'
+
+tm_shape(mpsz_sf) +
+  tm_fill('STUDY_AREA',
+          palette = c('grey90', 'rosybrown2')) +
+  tm_borders(col = 'gray28', lwd = 0.1, alpha = 0.3) +
+    tm_layout(legend.show = FALSE,
+              frame = FALSE)
+```
+
+## Extract and define study areas
+
+5 subzones : DOWNTOWN CORE, GEYLANG, HOUGANG, JURONG WEST and NEWTON, will be extracted to perform analysis 
+
+The steps taken to prepare the individual subzone data will be:
+
+  - Extract individual subzone from the mpsz_sf
+  - Convert the individual subzone data into an owin object
+  
+```{r}
+get_owin <- function(subzone_data, pln_area_n) {
+  subzone_data[subzone_data$PLN_AREA_N == pln_area_n,] %>%
+    as('Spatial') %>%
+    as('SpatialPolygons') %>%
+    as('owin')
+}
+```
+
+Create respective owin objects for individual subzones
+
+```{r}
+downtown_owin <- get_owin(mpsz_sf, "DOWNTOWN CORE")
+geylang_owin <- get_owin(mpsz_sf, "GEYLANG")
+hougang_owin <- get_owin(mpsz_sf, "HOUGANG")
+jurongw_owin <- get_owin(mpsz_sf, "JURONG WEST")
+newton_owin <- get_owin(mpsz_sf, "NEWTON")
+```
+
+Combine the owin objects with the Spatial Points
+
+```{r}
+downtown_2019_ppp <- june_2019_ppp[downtown_owin]
+geylang_2019_ppp <- june_2019_ppp[geylang_owin]
+hougang_2019_ppp <- june_2019_ppp[hougang_owin]
+jurongw_2019_ppp <- june_2019_ppp[jurongw_owin]
+newton_2019_ppp <- june_2019_ppp[newton_owin]
+```
+
+Visualise the ppp objects for checking, to ensure that they are error-free.
+
+```{r}
+par(mfrow=c(2,3))
+
+plot(downtown_2019_ppp, main = 'Downtown Core')
+plot(geylang_2019_ppp, main = 'Geylang')
+plot(hougang_2019_ppp, main = 'Hougang')
+plot(jurongw_2019_ppp , main = 'Jurong West')
+plot(newton_2019_ppp , main = 'Newton')
+
+mtext('Airbnb Listings in 2019', outer=TRUE, side=3, line=-12)
+```
+
+## Analaysis Formulation
+
+Second Order Spatial Point Patterns Analysis will be conducted with Hypothesis Testing. 
+
+We will be assessing if the point patterns is significantly different from Complete Spatial Randomness, which follows a Poisson Process. 
+
+For the purpose of this analysis, we formulate the following:
+
+  - Null Hypothesis : The distribution of the Airbnb Listings are randomly distributed
+  - Alternative Hypothesis : The distribution of the Airbnb Listings are not randomly distributed
+  - Significance level : 0.01
+  - Confidence level : 99%
+  
+
+### L-function
+
+The L-function is the function that will be used to conducted the Second-Order Analysis
+
+### Create functions
+
+This function below computes the l_estimate and plots it.
+
+```{r}
+l_estimate <- function(ppp_object) {
+  l_est <- Lest(ppp_object, correction = "Ripley")
+  
+  plot(l_est, . -r ~ r, 
+     ylab= "L(d)-r", xlab = "d(m)", main = 'L-estimate')
+}
+```
+
+### Airbnb Listings 2019 in Downtown Core
+
+Compute L function Estimate
+
+```{r}
+l_estimate(downtown_2019_ppp)
+```
+
+Performing Complete Spatial Randomness Test
+
+  - Null Hypothesis : The distribution of the Airbnb Listings in Downtown Core during 2019 are randomly distributed
+  - Alternative Hypothesis : The distribution of the Airbnb Listings in Downtown Core during 2019 are not randomly distributed
+  - Significance level : 0.01
+  - Confidence level : 99%
+
+We will make use of Monte Carlo Simulation together with L-function for this analysis.
+
+```{r}
+plot(envelope(downtown_2019_ppp, Gest, nsim = 99))
+```
+
+### Airbnb Listings 2019 in Geylang
+
+Compute L function Estimate
+
+```{r}
+l_estimate(geylang_2019_ppp)
+```
+
+Performing Complete Spatial Randomness Test
+
+  - Null Hypothesis : The distribution of the Airbnb Listings in Downtown Core during 2019 are randomly distributed
+  - Alternative Hypothesis : The distribution of the Airbnb Listings in Downtown Core during 2019 are not randomly distributed
+  - Significance level : 0.01
+  - Confidence level : 99%
+
+We will make use of Monte Carlo Simulation together with L-function for this analysis.
+
+```{r}
+plot(envelope(geylang_2019_ppp, Gest, nsim = 99))
+```
+
+
+### Airbnb Listings 2019 in Hougang
+
+Compute L function Estimate
+
+```{r}
+l_estimate(hougang_2019_ppp)
+```
+
+Performing Complete Spatial Randomness Test
+
+  - Null Hypothesis : The distribution of the Airbnb Listings in Hougang during 2019 are randomly distributed
+  - Alternative Hypothesis : The distribution of the Airbnb Listings in Hougang during 2019 are not randomly distributed
+  - Significance level : 0.01
+  - Confidence level : 99%
+
+We will make use of Monte Carlo Simulation together with L-function for this analysis.
+
+```{r}
+plot(envelope(hougang_2019_ppp, Gest, nsim = 99))
+```
+
+### Airbnb Listings 2019 in Jurong West
+
+Compute L function Estimate
+
+```{r}
+l_estimate(jurongw_2019_ppp)
+```
+
+Performing Complete Spatial Randomness Test
+
+  - Null Hypothesis : The distribution of the Airbnb Listings in Jurong West during 2019 are randomly distributed
+  - Alternative Hypothesis : The distribution of the Airbnb Listings in Jurong west during 2019 are not randomly distributed
+  - Significance level : 0.01
+  - Confidence level : 99%
+
+We will make use of Monte Carlo Simulation together with L-function for this analysis.
+
+```{r}
+plot(envelope(jurongw_2019_ppp, Gest, nsim = 99))
+```
 
 
 
+Compute L function Estimate
+
+```{r}
+l_estimate(newton_2019_ppp)
+```
+
+Performing Complete Spatial Randomness Test
+
+  - Null Hypothesis : The distribution of the Airbnb Listings in Newton during 2019 are randomly distributed
+  - Alternative Hypothesis : The distribution of the Airbnb Listings in Newton during 2019 are not randomly distributed
+  - Significance level : 0.01
+  - Confidence level : 99%
+
+We will make use of Monte Carlo Simulation together with L-function for this analysis.
+
+```{r}
+plot(envelope(newton_2019_ppp, Gest, nsim = 99))
+```
 
 
+# Marked Spatial Point Patterns Analysis
 
+Marked Point Patterns not only have density of events as first-order properties, they also have associated marks across the area of study.
+
+In this section of analysis, we are using the Room Type of the Airbnb Listings as the associated marks.
+
+## Exploring the Airbnb 2019 and 2021 Listings
+
+```{r}
+str(june_2019)
+```
+
+```{r}
+str(june_2021)
+```
+
+From the 2 above outputs, we can see that the Room Type is in the character data type. However, for Marked Spatial Point Analysis, the marked field (Room Type) must be in factor data type if its values are categorical.
+
+## Convert Character Data type to Factor Data type
+
+We will make use of the as.factor() function to convert the marked field, Room Type to the factor data type.
+
+```{r}
+june_2019@data$room_type <-as.factor(june_2019@data$room_type)
+
+str(june_2019)
+```
+
+
+```{r}
+june_2021@data$room_type <-as.factor(june_2021@data$room_type)
+
+str(june_2021)
+```
+
+### Visualise the Airbnb Listings by Room Type in 2019
+
+```{r}
+tm_shape(mpsz_sf) +
+  tm_borders(alpha = 0.5) +
+tm_shape(june_2019) +
+  tm_dots(col = 'room_type', size = 0.02) +
+tm_facets(by="room_type")
+```
+
+### Visualise the Airbnb Listings by Room Type in 2021
+
+```{r}
+tm_shape(mpsz_sf) +
+  tm_borders(alpha = 0.5) +
+tm_shape(june_2021) +
+  tm_dots(col = 'room_type', size = 0.02) +
+tm_facets(by="room_type")
+```
+
+
+## Convert the SpatialPointsDataFrame into ppp objects
+
+Steps Taken:
+
+  - Convert the SpatialPointDataFrame into ppp objects
+  - Use jittering to handle duplicated Spatial Points
+
+The main difference between this new ppp objects and the previous ones is that the new one has marked fields
+
+```{r}
+june_2019_marked_ppp <- as(june_2019, "ppp") %>%
+  rjitter(., retry=TRUE, nsim=1, drop=TRUE)
+
+june_2021_marked_ppp <- as(june_2021, "ppp") %>%
+  rjitter(., retry=TRUE, nsim=1, drop=TRUE)
+```
+
+
+## Extract and Combine Spatial Points with study areas
+
+Similar to the previous section above, we will only conduct analysis on 5 specific areas, namely:
+
+  - DOWNTOWN CORE
+  - GEYLANG
+  - JURONG WEST
+  - NEWTON
+  - HOUGANG 
+  
+*As a reminder, these are the areas we are focusing on*
+
+```{r}
+tm_shape(mpsz_sf) +
+  tm_fill('STUDY_AREA',
+          palette = c('grey90', 'rosybrown2')) +
+  tm_borders(col = 'gray28', lwd = 0.1, alpha = 0.3) +
+    tm_layout(legend.show = FALSE,
+              frame = FALSE)
+```
+
+Here, we will combine the respective ppp objects with the owin objects that were created in the previous sections
+
+```{r}
+downtown_2019_marked_ppp <- june_2019_marked_ppp[downtown_owin]
+geylang_2019_marked_ppp <- june_2019_marked_ppp[geylang_owin]
+hougang_2019_marked_ppp <- june_2019_marked_ppp[hougang_owin]
+jurongw_2019_marked_ppp <- june_2019_marked_ppp[jurongw_owin]
+newton_2019_marked_ppp <- june_2019_marked_ppp[newton_owin]
+
+downtown_2021_marked_ppp <- june_2021_marked_ppp[downtown_owin]
+geylang_2021_marked_ppp <- june_2021_marked_ppp[geylang_owin]
+hougang_2021_marked_ppp <- june_2021_marked_ppp[hougang_owin]
+jurongw_2021_marked_ppp <- june_2021_marked_ppp[jurongw_owin]
+newton_2021_marked_ppp <- june_2021_marked_ppp[newton_owin]
+```
+
+Visualise the ppp objects for checking, to ensure that they are error-free.
+
+For Airbnb Listings by Room-Type in 2019
+
+```{r}
+par(mfrow=c(2,3))
+
+plot(downtown_2019_marked_ppp, main = 'Downtown Core', which.marks = "room_type")
+plot(geylang_2019_marked_ppp, main = 'Geylang', which.marks = "room_type")
+plot(hougang_2019_marked_ppp, main = 'Hougang', which.marks = "room_type")
+plot(jurongw_2019_marked_ppp , main = 'Jurong West', which.marks = "room_type")
+plot(newton_2019_marked_ppp , main = 'Newton', which.marks = "room_type")
+
+mtext('Airbnb Listings by Room-Type in 2019', outer=TRUE, side=3, line=-12)
+```
+
+For Airbnb Listings by Room-Type in 2021
+
+```{r}
+par(mfrow=c(2,3))
+
+plot(downtown_2021_marked_ppp, main = 'Downtown Core', which.marks = "room_type")
+plot(geylang_2021_marked_ppp, main = 'Geylang', which.marks = "room_type")
+plot(hougang_2021_marked_ppp, main = 'Hougang', which.marks = "room_type")
+plot(jurongw_2021_marked_ppp , main = 'Jurong West', which.marks = "room_type")
+plot(newton_2021_marked_ppp , main = 'Newton', which.marks = "room_type")
+
+mtext('Airbnb Listings by Room-Type in 2021', outer=TRUE, side=3, line=-12)
+```
+
+# First-Order Marked Spatial Point Patterns Analysis
+
+
+```{r}
+par(mfrow=c(5,3))
+
+plot((density(split(rescale(downtown_2019_marked_ppp, 1000)))), main = 'Downtown Core')
+plot((density(split(rescale(geylang_2019_marked_ppp, 1000)))), main = 'Geylang')
+plot((density(split(rescale(hougang_2019_marked_ppp, 1000)))), main = 'Hougang')
+plot((density(split(rescale(jurongw_2019_marked_ppp, 1000)))), main = 'Jurong West')
+plot((density(split(rescale(newton_2019_marked_ppp, 1000)))), main = 'Newton')
+
+```
 
 
 
