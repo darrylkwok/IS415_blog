@@ -962,7 +962,7 @@ From the 2 above outputs, we can see that the Room Type is in the character data
 We will make use of the as.factor() function to convert the marked field, Room Type to the factor data type.
 
 ```{r}
-june_2019@data$room_type <-as.factor(june_2019@data$room_type)
+june_2019$room_type <-as.factor(june_2019$room_type)
 
 str(june_2019)
 ```
@@ -1011,6 +1011,8 @@ june_2019_marked_ppp <- as(june_2019, "ppp") %>%
 june_2021_marked_ppp <- as(june_2021, "ppp") %>%
   rjitter(., retry=TRUE, nsim=1, drop=TRUE)
 ```
+
+
 
 # First-Order Marked Spatial Point Patterns Analysis
 
@@ -1061,6 +1063,8 @@ newton_2021_marked_ppp <- june_2021_marked_ppp[newton_owin]
 woodlands_2021_marked_ppp <- june_2021_marked_ppp[woodlands_owin]
 ```
 
+### Plot room_type points and study area
+
 Visualise the ppp objects for checking, to ensure that they are error-free.
 
 For Airbnb Listings by Room-Type in 2019
@@ -1089,16 +1093,15 @@ plot(woodlands_2021_marked_ppp, main = 'Woodlands', which.marks = "room_type")
 mtext('Airbnb Listings by Room-Type in 2021', outer=TRUE, side=3, line=-12)
 ```
 
-
 ### Kernel Density Estimation for Airbnb Listings in 2019
 
 ```{r}
 par(mfrow=c(5,3))
 
-plot((density(split(rescale(bishan_2019_marked_ppp, 1000)))), main = 'Downtown Core')
+plot((density(split(rescale(bishan_2019_marked_ppp, 1000)))), main = 'Bishan')
 plot((density(split(rescale(jurongw_2019_marked_ppp, 1000)))), main = 'Jurong West')
 plot((density(split(rescale(newton_2019_marked_ppp, 1000)))), main = 'Newton')
-plot((density(split(rescale(woodlands_2019_marked_ppp, 1000)))), main = 'Hougang')
+plot((density(split(rescale(woodlands_2019_marked_ppp, 1000)))), main = 'Woodlands')
 ```
 
 ### Kernel Density Estimation for Airbnb Listings in 2021
@@ -1106,20 +1109,271 @@ plot((density(split(rescale(woodlands_2019_marked_ppp, 1000)))), main = 'Hougang
 ```{r}
 par(mfrow=c(5,3))
 
-plot((density(split(rescale(bishan_2021_marked_ppp, 1000)))), main = 'Downtown Core')
+plot((density(split(rescale(bishan_2021_marked_ppp, 1000)))), main = 'Bishan')
 plot((density(split(rescale(jurongw_2021_marked_ppp, 1000)))), main = 'Jurong West')
 plot((density(split(rescale(newton_2021_marked_ppp, 1000)))), main = 'Newton')
-plot((density(split(rescale(woodlands_2021_marked_ppp, 1000)))), main = 'Hougang')
+plot((density(split(rescale(woodlands_2021_marked_ppp, 1000)))), main = 'Woodlands')
 ```
 
 
 # Second Order Marked Spatial Point Pattern Analysis
 
+## Assign the Room Type as the marks to the ppp object
+
+Before conducting Second Order SPPA on the ppp objects, we need to assign the marks to the ppp objects and check the levels of the marks 
+
+### Assigning marks to Airbnb Listings in 2019
+
+```{r}
+marks(bishan_2019_marked_ppp) <- bishan_2019_marked_ppp$marks$room_type
+levels(marks(bishan_2019_marked_ppp))
+```
+
+```{r}
+marks(jurongw_2019_marked_ppp) <- jurongw_2019_marked_ppp$marks$room_type
+levels(marks(jurongw_2019_marked_ppp))
+```
+
+```{r}
+marks(newton_2019_marked_ppp) <- newton_2019_marked_ppp$marks$room_type
+levels(marks(newton_2019_marked_ppp))
+```
+
+```{r}
+marks(woodlands_2019_marked_ppp) <- woodlands_2019_marked_ppp$marks$room_type
+levels(marks(woodlands_2019_marked_ppp))
+```
+
+### Assigning marks to Airbnb Listings in 2021
+
+```{r}
+marks(bishan_2021_marked_ppp) <- bishan_2021_marked_ppp$marks$room_type
+levels(marks(bishan_2021_marked_ppp))
+```
+
+```{r}
+marks(jurongw_2021_marked_ppp) <- jurongw_2021_marked_ppp$marks$room_type
+levels(marks(jurongw_2021_marked_ppp))
+```
+
+```{r}
+marks(newton_2021_marked_ppp) <- newton_2021_marked_ppp$marks$room_type
+levels(marks(newton_2021_marked_ppp))
+```
+
+```{r}
+marks(woodlands_2021_marked_ppp) <- woodlands_2021_marked_ppp$marks$room_type
+levels(marks(woodlands_2021_marked_ppp))
+```
+
+## Second Order SPPA on Airbnb Listings
+
+### Bishan 2019
+
+Compute Lcross function for Entire Home/apt and Private Room
+
+```{r}
+plot(Lcross(bishan_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+```
+
+Perform CSR Testing using Cross L-function for Entire Home/apt and Private Room
+
+```{r}
+plot(envelope(bishan_2019_marked_ppp, Lcross, i = "Entire home/apt",
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)")
+```
+
+Compute Cross L-function for Entire home/apt and Shared room
+
+```{r}
+plot(Lcross(bishan_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Shared room",
+            correction='border')) 
+```
+
+Perform CSR Testing using Cross L-function for Entire home/apt and Shared room
+
+```{r}
+plot(envelope(bishan_2019_marked_ppp, Lcross, i = "Entire home/apt",
+            j = "Shared room", correction='border', nsim=999), xlab="distance(m)")
+```
+
+Compute Cross L-function for Private room and Shared room
+
+```{r}
+plot(Lcross(bishan_2019_marked_ppp,
+            i = "Private room",
+            j = "Shared room",
+            correction='border'))
+```
+
+Perform CSR Testing using Cross L-function for Private room and Shared room
+
+```{r}
+plot(envelope(bishan_2019_marked_ppp, Lcross, i = "Private room",
+            j = "Shared room", correction='border', nsim=999), xlab="distance(m)")
+```
+
+### Bishan 2021
+
+Compute Cross L-function for Entire home/apt and Private room
+
+```{r}
+plot(Lcross(bishan_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+```
+
+Perform CSR Testing using Cross L-function for Entire home/apt and Private room
+
+```{r}
+plot(envelope(bishan_2021_marked_ppp, Lcross, i = "Entire home/apt",
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)")
+```
+
+### Jurong West 2019
+
+Compute Cross L-function for Entire home/apt and Private room
+
+```{r}
+plot(Lcross(jurongw_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+
+```
+
+Perform CSR Testing using Cross L-function for Entire home/apt and Private room
+
+```{r}
+plot(envelope(jurongw_2019_marked_ppp, Lcross, i = "Entire home/apt",
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)")
+```
 
 
+```{r}
+plot(Lcross(jurongw_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Shared room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(jurongw_2019_marked_ppp,
+            i = "Private room",
+            j = "Shared room",
+            correction='border'))
+```
 
 
+### Jurong West 2021
+
+```{r}
+plot(Lcross(jurongw_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(jurongw_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Shared room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(jurongw_2021_marked_ppp,
+            i = "Private room",
+            j = "Shared room",
+            correction='border'))
+```
+
+### Newton 2019
+
+```{r}
+plot(Lcross(newton_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+
+```
+
+### Newton 2021
+
+```{r}
+plot(Lcross(newton_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(newton_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Hotel room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(newton_2021_marked_ppp,
+            i = "Private room",
+            j = "Hotel room",
+            correction='border'))
+```
+       
+
+### Woodlands 2019
+
+```{r}
+plot(Lcross(woodlands_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+
+```
+
+```{r}
+plot(Lcross(woodlands_2019_marked_ppp,
+            i = "Entire home/apt",
+            j = "Shared room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(woodlands_2019_marked_ppp,
+            i = "Private room",
+            j = "Shared room",
+            correction='border'))
+```
 
 
+### Woodlands 2021
+
+```{r}
+plot(Lcross(woodlands_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Private room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(woodlands_2021_marked_ppp,
+            i = "Entire home/apt",
+            j = "Shared room",
+            correction='border'))
+```
+
+```{r}
+plot(Lcross(woodlands_2021_marked_ppp,
+            i = "Private room",
+            j = "Shared room",
+            correction='border'))
+```
 
 
