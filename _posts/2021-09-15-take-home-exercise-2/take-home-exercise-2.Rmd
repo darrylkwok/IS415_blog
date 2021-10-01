@@ -1,7 +1,7 @@
 ---
 title: "Take-Home Exercise 2"
 description: |
-  A short description of the post.
+  In this article, we will analyse the Airbnb Listings in 2019 and 2021 and derive insights regarding the impact of COVID-19. In addition, we will analyse the Train Services, Tourist Attractions and Hotels in Singapore, and attempt to find out the relationship between these events and the Airbnb Listings.
 author:
   - name: Darryl Kwok
     url: https://example.com/darrylkwok
@@ -772,7 +772,7 @@ From the above plot of the KDE of train services in Singapore, we can see that t
 
 The Airbnb Listings in 2019 and 2020 are highly concentrated in the South side of Singapore. As we observed from the Tourist Attractions, Hotels and Train Services KDEs, their concentrations are also found to be similar to the concentration of the Airbnb Listings. There are a few possible explanations for this.
 
-  - The Airbnb Listings are listed in these areas deliberately to make their listings more attractive.
+  - The Airbnb Listings are listed in these areas deliberately to make their listings more attractive because they are nearer to most of the train services and tourist attractions in Singapore. 
   - The South side of Singapore is always considered the central area of Singapore, making the South the most convenient starting point for travelling around in Singapore.
   
 However, the Airbnb Listings might be randomly distributed around Singapore. In our next few sections, we attempt to check if they are randomly distributed.
@@ -1185,6 +1185,11 @@ plot((density(split(rescale(june_2019_marked_ppp[sg_owin], 1000)), sigma=bw.ppl)
 ```{r}
 plot((density(split(rescale(june_2021_marked_ppp[sg_owin], 1000)), sigma=bw.ppl)), main="Airbnb Listings 2021 by Room Type", box=FALSE)
 ```
+
+  - From the above plots, we can see that the Airbnb Listings' distribution in 2021 is relatively similar to what was observed in Airbnb Listings in 2019.
+  - The only differences observed are:
+    - There is a decrease in Airbnb Listings across all 3 room types (Entire home/apt, Private room and Shared room) that are present in both 2019 and 2021 Airbnb Listings.
+    - There is an additional room type, Hotel listings.
 
 ## Further Data Wrangling for Marked Spatial Point Patterns
 
@@ -1686,3 +1691,9 @@ plot(envelope(woodlands_2021_marked_ppp, Lcross, i = "Private room",
 ```
 
   - From the above plot, we can see that there are signs that at most distances, distribution of Private room and Shared room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
+  
+
+## Findings from Second Order Marked Spatial Patterns Analysis
+
+  - Most of the room types analyzed above are found to be spatially independent of each other. This clearly shows that there are other reasons why most of the Airbnb Listings are listed there.
+  - As analyzed in previous sections earlier, the tourist attractions, train services and hotels are also located in the dense areas of the Airbnb Listings. Therefore, the reason that the Airbnb listings are located there is because of these factors rather than being close to other Listings that are nearby.

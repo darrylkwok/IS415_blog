@@ -9,6 +9,8 @@ navbar:
       menu:
       - text: "Take-home Exercise 1"
         href: posts/2021-09-06-take-home-exercise-1/index.html
+      - text: "Take-home Exercise 2"
+        href: posts/2021-09-15-take-home-exercise-2/index.html
     - text: "In-class Exercise"
       href: index.html
     - text: "About"
