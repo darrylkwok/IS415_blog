@@ -9,11 +9,17 @@ date: 09-15-2021
 output:
   distill::distill_article:
     self_contained: false
+    toc: true
+    toc_depth: 4
+    code_folding: true
+    highlight: haddock
+    highlight_downlit: false
+    background: '#000000'
 ---
 
 
-```{r setup, include=FALSE, eval=TRUE, echo=TRUE, message=FALSE, error=FALSE, fig.retina=3}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE, error = FALSE, fig.retina = 3, R.options = list(width = 60))
 ```
 
 # Overview
@@ -33,6 +39,16 @@ library(p,character.only = T)
 
 
 # Data
+
+The following datasets will be used for our analysis:
+
+  - *MRTLRTStnPTT*, a Shapefile that contains location information of the Train Services in Singapore. Downloaded from LTA Data Mall
+  - *MP14_SUBZONE_WEB_PL*, a Shapefile that contains the different subzone information in Singapore. Downloaded from data.gov.sg
+  - *CostalOutline*, a Shapefile that contains the boundary of Singapore's Coastline. Hands-on Exercise Data.
+  - *30062019.csv*, a CSV file that contains information about Airbnb Listings in 2019. Provided by Prof Kam Tin Seong.
+  - *30062021.csv"*, a CSV file that contains information about Airbnb Listings in 2021. Downloaded from http://insideairbnb.com/get-the-data.html
+  - *hotels.csv*, a CSV file that contains information about the Hotels Listings in Singapore. Downloaded using OneMapAPI.
+  - *tourism.csv*, a CSV file that contains information about the Tourism Attractions in Singapore. Downloaded using OneMapAPI.
 
 ## Import Geospatial Data
 
@@ -107,19 +123,6 @@ Therefore, we will handle the invalid geometries and check if the changes are ma
 sg_sf <- st_make_valid(sg_sf)
 length(which(st_is_valid(sg_sf) == FALSE))
 ```
-
-
-### Visualise the Location of the Train Services on the Singapore Map
-
-```{r}
-tmap_mode('view')
-
-tm_shape(train_services_sf) +
-  tm_dots(col="red", size=0.1)
-
-tmap_mode('plot')
-```
-
 
 ## Import Aspatial Data
 
@@ -216,7 +219,7 @@ tourism[(is.na(tourism$LONGTITUDE) | tourism$LONGTITUDE=="" | is.na(tourism$LATI
 Steps Taken:
 
   - Convert the R Dataframes into an sf object by defining the columns and the projection system
-  - Then transform the projection system to the correct one
+  - Then transform the projection system to the correct projection
 
 ```{r}
 june_2019_sf <- st_as_sf(june_2019, coords = c("longitude", "latitude"), crs = 4326) %>%
@@ -275,6 +278,8 @@ hotels
 ```{r}
 tourism
 ```
+
+**From the above outputs, we can see that now the sf dataframes are converted to Spatial Class Objects**
 
 ### Converting the Spatial class into generic sp format
 
@@ -442,7 +447,7 @@ any(duplicated(hotels_ppp_jit))
 ```{r}
 any(duplicated(tourism_ppp_jit)) 
 ```
-## Creating an owin object
+### Creating an owin object
 
 Point pattern is defined as a series of events in a given area or window of observation. Therefore, it is important to define the observation window or area.
 
@@ -459,7 +464,7 @@ plot(sg_owin)
 ```
 
 
-## Combine Spatial Point Events and owin object
+### Combine Spatial Point Events and owin object
 
 We will extract events that are specific to Singapore.This events include:
 
@@ -541,6 +546,11 @@ train_services_SG_ppp_km <- rescale(train_services_SG_ppp, 1000, 'km')
 
 ### Compute Kernel Density Estimation using automatic bandwidth selection method
 
+To compute the KDE, we used the density function with the following parameters:
+
+  - bw.ppl was selected for the *sigma* parameter because, bw.ppl algorithm tends to produce more appropriate values when the pattern contains predominantly of tight clusters. However, if our goal was to identify a single tight cluster among the random noises, bw.diggle should be used.
+  - "gaussian" was selected as the kernel. This is to provide lesser weights to points that are further away from a reference point.
+
 ```{r}
 kde_june_2019_SG_bw <- density(june_2019_SG_ppp_km,
                               sigma=bw.ppl,
@@ -580,27 +590,42 @@ kde_train_services_SG_bw <- density(train_services_SG_ppp_km,
 plot(kde_june_2019_SG_bw)
 ```
 
-```{r}
-plot(kde_june_2019_SG_bw)
-```
+
+We can see from the above plot that the Airbnb Listings in 2019 are predominantly located in the South of Singapore. The concentration of Airbnb Listings ranges from 200 to 600 listings per square kilometers. 
+
 
 ```{r}
 plot(kde_june_2021_SG_bw)
 ```
 
+
+We can see from the above plot that the Airbnb Listings in 2021 are predominantly located in the South of Singapore. The concentration of Airbnb Listings ranges from 200 to 400 listings per square kilometers. 
+
 ```{r}
 plot(kde_tourism_SG_bw)
 ```
+
+
+From the above plot of the KDE of the Tourist Attractions in Singapore, we can observe that there is a high concentration of Tourist Attractions at the South side of Singapore with some areas having 3 attractions per square kilometers. 
 
 ```{r}
 plot(kde_hotels_SG_bw)
 ```
 
+
+The above plot shows the KDE of Hotels in Singapore. We can observe that hotels in Singapore are generally concentrated in the South side of Singapore, with areas having as high as 20 hotels per square kilometers.
+
 ```{r}
 plot(kde_train_services_SG_bw)
 ```
 
+
+
+**After visualising the KDE of the Airbnb Listings, Train Services, Hotels and Tourism Attractions in Singapore. We want to plot the KDE on the OpenStreetMap of Singapore.**
+
 ### Converting KDE output into RasterLayer Object
+
+In order for us to do so, we have to convert the KDE generated into RasterLayer objects. This will allow us to make use of tmap to plot the maps.
 
 The steps taken will be:
 
@@ -722,6 +747,10 @@ train_services_dmap <- density_map(kde_train_services_SG_bw_raster, mtitle = "SG
 ```
 
 ```{r}
+june_2019_dmap
+```
+
+```{r}
 june_2021_dmap
 ```
 
@@ -737,18 +766,33 @@ tourism_dmap
 train_services_dmap
 ```
 
+From the above plot of the KDE of train services in Singapore, we can see that the distribution of Train Services are relatively spread out across Singapore. However, they are also concentrated at the South side, North-East side and North-West side.
+
+### Findings from Exploratory Spatial Data Analysis
+
+The Airbnb Listings in 2019 and 2020 are highly concentrated in the South side of Singapore. As we observed from the Tourist Attractions, Hotels and Train Services KDEs, their concentrations are also found to be similar to the concentration of the Airbnb Listings. There are a few possible explanations for this.
+
+  - The Airbnb Listings are listed in these areas deliberately to make their listings more attractive.
+  - The South side of Singapore is always considered the central area of Singapore, making the South the most convenient starting point for travelling around in Singapore.
+  
+However, the Airbnb Listings might be randomly distributed around Singapore. In our next few sections, we attempt to check if they are randomly distributed.
+
+
 ## Kernel Density Map vs Point Map
 
 There are a few advantages that Kernel Density Map has over Point Map.
 
-  - Firstly, Kernel density z
-  estimate smooths the points in a given area, creating a continuous surface of density estimations. However, point map only shows the inidividual points that are concentrated within an area, and only can be observed quantitatively.
+  - Firstly, Kernel density estimate smooths the points in a given area, creating a continuous surface of density estimations. However, point map only shows the individual points that are concentrated within an area, and only can be observed quantitatively.
   
   - Secondly, kernel density map makes use of the inverse-distance weighted counts of the points. These weighted counts are used to represent the concentration of points at a specific location. This feature of kernel density map is unable to be replicated using point map.
 
 
 
+
 # Second-order Spatial Point Patterns Analysis
+
+In order to statistically verify if the Airbnb Listings in 2019 are randomly distributed or if there is clustering, Second-Order Spatial Point Pattern Analysis will be conducted.
+
 
 ## Prepare specific subzones for analysis
 
@@ -774,13 +818,15 @@ tm_shape(mpsz_sf) +
 
 ## Extract and define study areas
 
-5 subzones : DOWNTOWN CORE, GEYLANG, HOUGANG, JURONG WEST and NEWTON, will be extracted to perform analysis 
+4 subzones : BISHAN, JURONG WEST, NEWTON and WOODLANDS, will be extracted to perform Second Order SPPA.
 
 The steps taken to prepare the individual subzone data will be:
 
   - Extract individual subzone from the mpsz_sf
   - Convert the individual subzone data into an owin object
-  
+
+The function created below is to facilitate the preparation of individual subzone data.
+
 ```{r}
 get_owin <- function(subzone_data, pln_area_n) {
   subzone_data[subzone_data$PLN_AREA_N == pln_area_n,] %>%
@@ -800,6 +846,8 @@ woodlands_owin <- get_owin(mpsz_sf, "WOODLANDS")
 ```
 
 Combine the owin objects with the Spatial Points
+
+This step will enable us to define and confine the spatial points and study areas of Bishan, Jurong West, Newton and Woodlands.
 
 ```{r}
 bishan_2019_ppp <- june_2019_ppp[bishan_owin]
@@ -822,7 +870,7 @@ plot(woodlands_2019_ppp , main = 'Woodlands')
 mtext('Airbnb Listings in 2019', outer=TRUE, side=3, line=-12)
 ```
 
-## Analaysis Formulation
+## Analysis Formulation
 
 Second Order Spatial Point Patterns Analysis will be conducted with Hypothesis Testing. 
 
@@ -840,6 +888,30 @@ For the purpose of this analysis, we formulate the following:
 
 The L-function is the function that will be used to conducted the Second-Order Analysis
 
+  - It is based on the popular Second-Order SPPA technique, K Function.
+  - It is an improved version of the K Function. 
+
+**K-Function**
+
+The K function is a cummulative function that increases with distance. Therefore, it is natural to have more points when the distance increases. As distance and points increases, there will be more variance to the data.
+
+  - The L function will account for this variance that increases along with the increase in distance.
+  
+Therefore, the L function is selected for the analysis.
+
+**Interpretation and Methodology** 
+
+  - (L(r) - r) will be plotted against r
+  - To assess Complete Spatial Randomness (CSR), L(r) - r = 0
+    - Whereas, L(r) - r > 0 implies clustering
+    - L(r) - r < 0 implies inhibition
+
+  - To determine Statistical Significance to confirm our L Estimate Observation, we will make use of Monte Carlo Simulation
+    
+    - Monte Carlo is a randomization test that uses simulations to create an envelope (using the function envelope) 
+      - The width of the envelope determines the variance of the process
+      - If L(r) falls outside the envelope, we can prove statistical significance and reject the null hypothesis
+
 ### Create functions
 
 This function below computes the l_estimate and plots it.
@@ -849,19 +921,59 @@ l_estimate <- function(ppp_object) {
   l_est <- Lest(ppp_object, correction = "Ripley")
   
   plot(l_est, . -r ~ r, 
-     ylab= "L(d)-r", xlab = "d(m)", main = 'L-estimate')
+     ylab= "L(r)-r", xlab = "d(m)", main = 'L-estimate')
+}
+```
+
+This function performs Monte Carlo for CSR test using the L function and plots the result
+
+```{r}
+l_montecarlo <- function(ppp, mtitle) {
+  
+  # Set seed such that same results will be obtained from MC test every time
+  set.seed(1234)
+  l_mc <- envelope(ppp, Lest, nsim = 199)
+  
+  l_data <- as.data.frame(l_mc)
+  l_data <- l_data[-1,]
+  
+  colour <- c("#d73027", "#ffffbf", "#91bfdb")
+
+  test <- ggplot(l_data, aes(x=r, y=obs-r))+
+    # plot observed value
+    geom_line(colour=c("#4d4d4d"), aes(text = sprintf('L(r) - r: %f \nr: %f', obs-r, r), group=1))+
+    # plot simulation envelopes
+    geom_ribbon(aes(ymin=(lo-r),ymax=(hi-r), alpha=0.1, colour=c("#e0e0e0"))) +
+    xlab("Distance, r (metres)") +
+    ylab("L(r) - r") +
+    # plot expected value, which is equal to 0
+    geom_hline(yintercept=0, linetype = "dashed", colour=c("#800000")) +
+    # plot 'Quantums'
+    geom_rug(data=l_data[(l_data$obs-l_data$r) > (l_data$hi-l_data$r),], sides="b", colour=colour[1]) +
+    geom_rug(data=l_data[(l_data$obs-l_data$r) < (l_data$lo-l_data$r),], sides="b", colour=colour[2]) +
+    geom_rug(data=l_data[(l_data$obs-l_data$r) >= (l_data$lo-l_data$r) & (l_data$obs-l_data$r) <= (l_data$hi-l_data$r),], sides="b", color=colour[3]) +
+    # turn off all legends
+    theme(legend.position="none") +
+    ggtitle(sprintf('Airbnb Listings in %s: L(r) - r with Randomisation Envelope', mtitle))
+    
+  ggplotly(test, tooltip = "text")
 }
 ```
 
 ### Airbnb Listings 2019 in Bishan
 
-Compute L function Estimate
+**Compute L function Estimate**
 
 ```{r}
 l_estimate(bishan_2019_ppp)
 ```
 
-Performing Complete Spatial Randomness Test
+  - Most of the distances are above 0 (L(r) - r), therefore this implies that there are clustering for distance roughly above 10m.
+
+
+To confirm the observed spatial pattern and assess if the distribution of Airbnb Listings at Bishan in 2019 is significantly different from a homogeneous Poisson process, we then proceed to conduct Monte Carlo test with L function to test the hypothesis.
+
+**Performing Complete Spatial Randomness Test**
 
   - Null Hypothesis : The distribution of the Airbnb Listings in Bishan during 2019 are randomly distributed
   - Alternative Hypothesis : The distribution of the Airbnb Listings in Bishan during 2019 are not randomly distributed
@@ -871,18 +983,26 @@ Performing Complete Spatial Randomness Test
 We will make use of Monte Carlo Simulation together with L-function for this analysis.
 
 ```{r}
-plot(envelope(bishan_2019_ppp, Lest, nsim = 199))
+l_montecarlo(bishan_2019_ppp, "Bishan")
 ```
 
+  - Distances below 40m, the L(r) - r is within the envelope constructed. Therefore, we **CANNOT** statistically prove that there is clustering at distances below 40m
+  - Distances above 40m and below 420m, the L(r) - r is above the envelope constructed. Therefore, we **CAN** statistically prove that there is clustering at at distances above 40m and below 420m.
+  - Distances above 420m and below 660m, the L(r) - r is within the envelope constructed. Therefore, we **CANNOT** statistically prove that there is clustering at at distances above 40m and below 420m.
+  
 ### Airbnb Listings 2019 in Jurong West
 
-Compute L function Estimate
+**Compute L function Estimate**
 
 ```{r}
 l_estimate(jurongw_2019_ppp)
 ```
 
-Performing Complete Spatial Randomness Test
+  - All of the distances are above 0 (L(r) - r), therefore this implies that there are clustering for all distances.
+  
+To confirm the observed spatial pattern and assess if the distribution of Airbnb Listings at Jurong West in 2019 is significantly different from a homogeneous Poisson process, we then proceed to conduct Monte Carlo test with L function to test the hypothesis.
+
+**Performing Complete Spatial Randomness Test**
 
   - Null Hypothesis : The distribution of the Airbnb Listings in Paya Lebar during 2019 are randomly distributed
   - Alternative Hypothesis : The distribution of the Airbnb Listings in Paya Lebar during 2019 are not randomly distributed
@@ -892,18 +1012,26 @@ Performing Complete Spatial Randomness Test
 We will make use of Monte Carlo Simulation together with L-function for this analysis.
 
 ```{r}
-plot(envelope(jurongw_2019_ppp, Lest, nsim = 99))
+l_montecarlo(jurongw_2019_ppp, "Jurong West")
 ```
 
-Compute L function Estimate
+  - Distances below 10m, the L(r) - r is within the envelope constructed. Therefore, we **CANNOT** statistically prove that there is clustering at distances below 10m.
+  - Distances above 10m, the L(r) - r is above the envelope constructed. Therefore, we **CAN** statistically prove that there is clustering at at distances above 10m.
+  
+
+**Compute L function Estimate**
 
 ```{r}
 l_estimate(newton_2019_ppp)
 ```
 
+  - Most of the distances are above 0 (L(r) - r), therefore this implies that there are clustering for distance roughly above 1m-5m.
+  
+To confirm the observed spatial pattern and assess if the distribution of Airbnb Listings at Newton in 2019 is significantly different from a homogeneous Poisson process, we then proceed to conduct Monte Carlo test with L function to test the hypothesis.
+
 ### Airbnb Listings 2019 in Newton
 
-Performing Complete Spatial Randomness Test
+**Performing Complete Spatial Randomness Test**
 
   - Null Hypothesis : The distribution of the Airbnb Listings in Newton during 2019 are randomly distributed
   - Alternative Hypothesis : The distribution of the Airbnb Listings in Newton during 2019 are not randomly distributed
@@ -913,21 +1041,27 @@ Performing Complete Spatial Randomness Test
 We will make use of Monte Carlo Simulation together with L-function for this analysis.
 
 ```{r}
-plot(envelope(newton_2019_ppp, Lest, nsim = 199))
+l_montecarlo(newton_2019_ppp, "Newton")
 ```
 
+  - Distances below 8m, the L(r) - r is within the envelope constructed. Therefore, we **CANNOT** statistically prove that there is clustering at distances below 10m.
+  - Distances above 8m, the L(r) - r is above the envelope constructed. Therefore, we **CAN** statistically prove that there is clustering at at distances above 10m.
 
 ### Airbnb Listings 2019 in Woodlands
 
-Compute L function Estimate
+**Compute L function Estimate**
 
 ```{r}
 l_estimate(woodlands_2019_ppp)
 ```
+  - Most of the distances are above 0 (L(r) - r), therefore this implies that there are clustering for distance roughly above 5m.
 
-Performing Complete Spatial Randomness Test
 
-  - Null Hypothesis : The distribution of the Airbnb Listings in Woodlands during 2019 are randomly distributed
+To confirm the observed spatial pattern and assess if the distribution of Airbnb Listings at Woodlands in 2019 is significantly different from a homogeneous Poisson process, we then proceed to conduct Monte Carlo test with L function to test the hypothesis.
+
+**Performing Complete Spatial Randomness Test**
+
+  - Null Hypothesis : The distribution of the Airbnb Listings in Woodlands during 2019 are randomly distributedv
   - Alternative Hypothesis : The distribution of the Airbnb Listings in Woodlands during 2019 are not randomly distributed
   - Significance level : 0.01
   - Confidence level : 99%
@@ -935,7 +1069,7 @@ Performing Complete Spatial Randomness Test
 We will make use of Monte Carlo Simulation together with L-function for this analysis.
 
 ```{r}
-plot(envelope(woodlands_2019_ppp, Lest, nsim = 199))
+l_montecarlo(newton_2019_ppp, "Newton")
 ```
 
 
@@ -995,10 +1129,21 @@ tm_facets(by="room_type")
 ```
 
 
-## Convert the SpatialPointsDataFrame into ppp objects
+
+# First-Order Marked Spatial Point Patterns Analysis
+
+**There will be 3 levels of our First-Order Marked Spatial Point Patterns Analysis**
+  
+  - KDE of Airbnb Listings in whole of Singapore
+  - By Room Type
+  - By Room Type and Study Areas
+
+## Data Preparation
+
+### Convert the SpatialPointsDataFrame into ppp objects
 
 Steps Taken:
-
+2
   - Convert the SpatialPointDataFrame into ppp objects
   - Use jittering to handle duplicated Spatial Points
 
@@ -1010,30 +1155,44 @@ june_2019_marked_ppp <- as(june_2019, "ppp") %>%
 
 june_2021_marked_ppp <- as(june_2021, "ppp") %>%
   rjitter(., retry=TRUE, nsim=1, drop=TRUE)
-```
+```  
 
 
-
-# First-Order Marked Spatial Point Patterns Analysis
-
-## Kernel Density Estimation for Airbnb Listings in 2019
+## Kernel Density Estimation for Airbnb Listings 2019 and 2021 (First Level)
 
 ```{r}
-plot((density(split(rescale(june_2019_marked_ppp[sg_owin], 1000)), sigma=bw.ppl)), main="Kernel Density Estimation for 2019 Airbnb Listings")
+tmap_arrange(june_2019_dmap, june_2021_dmap)
 ```
+
+  
+  - From the above 2 plots, we can see that also the distribution of the Airbnb Listings are still concentrated at the south of Singapore for 2019 and 2021.
+  - The number of listings have drastically decreased from 2019 to 2021, with the highest number of listings in 2019 being at 700 per square kilometer while the highest number of listings is at 500 per square kilometer.
+
+## Kernel Density Estimation for Airbnb Listings 2019 and 2021, by Room-Type (Second Level)
+
+### Kernel Density Estimation for Airbnb Listings in 2019
+
+```{r}
+plot((density(split(rescale(june_2019_marked_ppp[sg_owin], 1000)), sigma=bw.ppl)), main="Airbnb Listings 2019 by Room Type", box=FALSE)
+```
+
+  - From the above plots and scales, it can be seen that the Private room listings has the highest number of listings in 2019
+  - However, it can be observed that the Entire home/apt listings has a larger distribution in the South side of Singapore
+  - The South side of Singapore has the most number of Airbnb Listings in Singapore
 
 ## Kernel Density Estimation for Airbnb Listings in 2021
 
 ```{r}
-plot((density(split(rescale(june_2021_marked_ppp[sg_owin], 1000)), sigma=bw.ppl)), main="Kernel Density Estimation for 2021 Airbnb Listings")
+plot((density(split(rescale(june_2021_marked_ppp[sg_owin], 1000)), sigma=bw.ppl)), main="Airbnb Listings 2021 by Room Type", box=FALSE)
 ```
 
+## Further Data Wrangling for Marked Spatial Point Patterns
 
-## Extract and Combine Spatial Points with study areas
+### Extract and Combine Spatial Points with study areas
 
 *As a reminder, these are the areas we are focusing on*
 
-Similar to the previous section above, we will only conduct analysis on 5 specific areas, namely:
+Similar to the previous section above, we will only conduct analysis on 4 specific areas, namely:
 
   - BISHAN
   - JURONG WEST
@@ -1093,34 +1252,11 @@ plot(woodlands_2021_marked_ppp, main = 'Woodlands', which.marks = "room_type")
 mtext('Airbnb Listings by Room-Type in 2021', outer=TRUE, side=3, line=-12)
 ```
 
-### Kernel Density Estimation for Airbnb Listings in 2019
-
-```{r}
-par(mfrow=c(5,3))
-
-plot((density(split(rescale(bishan_2019_marked_ppp, 1000)))), main = 'Bishan')
-plot((density(split(rescale(jurongw_2019_marked_ppp, 1000)))), main = 'Jurong West')
-plot((density(split(rescale(newton_2019_marked_ppp, 1000)))), main = 'Newton')
-plot((density(split(rescale(woodlands_2019_marked_ppp, 1000)))), main = 'Woodlands')
-```
-
-### Kernel Density Estimation for Airbnb Listings in 2021
-
-```{r}
-par(mfrow=c(5,3))
-
-plot((density(split(rescale(bishan_2021_marked_ppp, 1000)))), main = 'Bishan')
-plot((density(split(rescale(jurongw_2021_marked_ppp, 1000)))), main = 'Jurong West')
-plot((density(split(rescale(newton_2021_marked_ppp, 1000)))), main = 'Newton')
-plot((density(split(rescale(woodlands_2021_marked_ppp, 1000)))), main = 'Woodlands')
-```
-
-
-# Second Order Marked Spatial Point Pattern Analysis
-
 ## Assign the Room Type as the marks to the ppp object
 
 Before conducting Second Order SPPA on the ppp objects, we need to assign the marks to the ppp objects and check the levels of the marks 
+
+  - The levels of the marks represents the different room types that are available for Airbnb Listings 2019 and Airbnb Listings 2021
 
 ### Assigning marks to Airbnb Listings in 2019
 
@@ -1166,11 +1302,126 @@ marks(woodlands_2021_marked_ppp) <- woodlands_2021_marked_ppp$marks$room_type
 levels(marks(woodlands_2021_marked_ppp))
 ```
 
-## Second Order SPPA on Airbnb Listings
+## Kernel Density Estimation for Airbnb Listings 2019 and 2021, by Room-Type and Study Areas (Third Level)
+
+In this section, we will plot the KDE for the Airbnb Listings in 2019 and 2021 and also provide in-depth analysis of the Airbnb Listings between 2019 and 2021.
+
+**Secondary Task**
+
+*Other than visualising the KDE for the Airbnb Listings*
+
+There are many room types and study areas that could be selected for further analysis. However, not all of the room types will be found close to each other for a meaningful analysis. 
+
+In the next section (Second Order SPPA), we will make use of the L-cross function to count the number of events of *type j* within a **distance band, r** from every *event i*
+
+Therefore, in this section we will plot the KDE for each study area and select room types that has the most similar distribution for further *Second Order SPPA* analysis.
+
+In addition, since we hope to analyze the impact of COVID-19 on the Airbnb Listings, we will select the same pairs of room types to perform analysis over 2019 and 2021. This will enable us to conduct a comparison.
+
+### Kernel Density Estimation for Bishan 2019 
+
+```{r}
+plot((density(split(rescale(bishan_2019_marked_ppp, 1000)))), main = 'Bishan 2019')
+```
+
+  - From the above 3 plots we can see that the distribution of Airbnb Listings in 2019 for the Entire home/apt and Private room are relatively similar.
+  - Therefore, we can expect to find many pairs of points that are near to each other.
+
+
+### Kernel Density Estimation for Bishan 2021
+
+```{r}
+plot((density(split(rescale(bishan_2021_marked_ppp, 1000)))), main = 'Bishan 2021')
+```
+
+  - From the above plots, we can see that there are no Hotel room or Shared room listings in 2021.
+  - In addition, the distribution of the Entire home/apt listings are relatively similar to the Private room listings.
+  - This observation is coherent to the distribution that was observed in 2019.
+
+
+**Therefore, we will use the Room Types of Entire home/apt and Private room for the Second-Order SPPA for Bishan 2019 and 2021**
+
+### Kernel Density Estimation for Jurong West 2019
+
+```{r}
+plot((density(split(rescale(jurongw_2019_marked_ppp, 1000)))), main = 'Jurong West 2019')
+```
+
+  - From the above plots, we can see a very similar distribution in the Private room listings and the Shared room listings.
+  - The Entire home/apt listings are rather little for us to conduct a meaningful analysis.
+
+### Kernel Density Estimation for Jurong West 2021
+
+```{r}
+plot((density(split(rescale(jurongw_2021_marked_ppp, 1000)))), main = 'Jurong West 2021')
+```
+
+  - From the above plots, we can see that there are no Hotel room listings in Jurong West in 2021
+  - In addition, with reference to the previous section where Private room and Shared room listings' distribution are the most similar in 2019, we will continue to select Private room and Shared room listings for Jurong West 2021
+  - However, another insight we can generate from this is that, the listings of Shared room decreased drastically from 2019. The listings of Entire home/apt also decreased, but not as drastically as Shared room.
+  - It seems like the listings of Private room were not affected as much.
+
+**Therefore, we will use the Room Types of Private room and Shared room for the Second-Order SPPA for Jurong West 2019 and 2021** 
+
+### Kernel Density Estimation for Newton 2019
+
+```{r}
+plot((density(split(rescale(newton_2019_marked_ppp, 1000)))), main = 'Newton 2019')
+```
+
+  - From the above plots, we can see that there are no Shared room listings in Newton during 2019.
+  - Therefore, we can only choose Entire home/apt and Private room listings
+  - The distribution of Entire home/apt and Private room are relatively similar
+
+### Kernel Density Estimation for Newton 2021
+
+```{r}
+plot((density(split(rescale(newton_2021_marked_ppp, 1000)))), main = 'Newton 2021')
+```
+  
+  - From the above plots we can see that there are still no listings of Shared room in 2021.
+  - There is also an addition of Hotel room listings in Newton during 2021.
+  - The distribution of Entire home/apt and Private room remains relatively similar.
+  
+**Therefore, we will use the Room Types of Entire home/apt and Private room for the Second-Order SPPA for Newton 2019 and 2021**
+
+### Kernel Density Estimation for Woodlands 2019
+
+```{r}
+plot((density(split(rescale(woodlands_2019_marked_ppp, 1000)))), main = 'Woodlands 2019')
+```
+
+  - From the above plots, we can see that the distribution of Private room and Shared room listings are relatively similar. 
+  = Therefore, we will choose Private room and Shared room for Woodlands 2019
+
+### Kernel Density Estimation for Woodlands 2021
+
+```{r}
+plot((density(split(rescale(woodlands_2021_marked_ppp, 1000)))), main = 'Woodlands 2021')
+```
+
+  - There are also no Hotel room Listings in Woodlands during 2021.
+  - With reference to the selection made in Woodlands 2019, we will continue to select Private room and Shared room for Woodlands 2021.
+
+**Therefore, we will use the Room Types of Private room and Shared room for the Second-Order SPPA for Woodlands 2019 and 2021** 
+
+
+
+# Second Order Marked Spatial Point Pattern Analysis
+
+## Computation of L-Function and CSR Test for each study area
+
+For the Second SPPA conducted on Marked Airbnb Listings, we will utilize 2 steps to analyse the spatial point patterns here.
+
+  - Firstly, we will analyse the relationships between each room types using the computation of a Lcross function
+  - Secondly, we will analyse the relationships between each room types using the a Monte Carlo simulation that utilizes the Lcross function, and confirm the observation in the *first-step*.
+
 
 ### Bishan 2019
 
-Compute Lcross function for Entire Home/apt and Private Room
+**Compute Lcross function for Entire Home/apt and Private Room**
+
+We will analyse the relationship of Entire home/apt listings and Private Room listings using the Lcross function. 
 
 ```{r}
 plot(Lcross(bishan_2019_marked_ppp,
@@ -1179,48 +1430,33 @@ plot(Lcross(bishan_2019_marked_ppp,
             correction='border'))
 ```
 
-Perform CSR Testing using Cross L-function for Entire Home/apt and Private Room
+  - Most of the distances are above the Theoretical Poisson Process (Red Dotted Line), therefore this implies that there the marked spatial point patterns are not statistically independent.
+  - However, as the distance (r) increases, the marked points patterns become statistically independent
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at low distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+
+**Perform CSR Testing using Cross L-function for Entire Home/apt and Private Room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the Entire home/apt listings and Private Room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the Entire home/apt listings and Private Room listings are *NOT* spatially independent.
+  
 
 ```{r}
 plot(envelope(bishan_2019_marked_ppp, Lcross, i = "Entire home/apt",
-            j = "Private room", correction='border', nsim=999), xlab="distance(m)")
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)", main="Bishan 2019")
 ```
 
-Compute Cross L-function for Entire home/apt and Shared room
-
-```{r}
-plot(Lcross(bishan_2019_marked_ppp,
-            i = "Entire home/apt",
-            j = "Shared room",
-            correction='border')) 
-```
-
-Perform CSR Testing using Cross L-function for Entire home/apt and Shared room
-
-```{r}
-plot(envelope(bishan_2019_marked_ppp, Lcross, i = "Entire home/apt",
-            j = "Shared room", correction='border', nsim=999), xlab="distance(m)")
-```
-
-Compute Cross L-function for Private room and Shared room
-
-```{r}
-plot(Lcross(bishan_2019_marked_ppp,
-            i = "Private room",
-            j = "Shared room",
-            correction='border'))
-```
-
-Perform CSR Testing using Cross L-function for Private room and Shared room
-
-```{r}
-plot(envelope(bishan_2019_marked_ppp, Lcross, i = "Private room",
-            j = "Shared room", correction='border', nsim=999), xlab="distance(m)")
-```
+  - From the above plot, we can see that there are signs that the distribution of Entire home/apt and Private room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
 
 ### Bishan 2021
 
-Compute Cross L-function for Entire home/apt and Private room
+**Compute Cross L-function for Entire home/apt and Private room**
+
+We will analyse the relationship of Entire home/apt listings and Private room listings using the Lcross function.
 
 ```{r}
 plot(Lcross(bishan_2021_marked_ppp,
@@ -1229,39 +1465,31 @@ plot(Lcross(bishan_2021_marked_ppp,
             correction='border'))
 ```
 
-Perform CSR Testing using Cross L-function for Entire home/apt and Private room
+  - Most of the distances are above the Theoretical Poisson Process (Red Dotted Line), therefore this implies that there the marked spatial point patterns are not statistically independent.
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at majority of the distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+
+**Perform CSR Testing using Cross L-function for Entire home/apt and Private room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the Entire home/apt listings and Private Room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the Entire home/apt listings and Private Room listings are *NOT* spatially independent.
 
 ```{r}
 plot(envelope(bishan_2021_marked_ppp, Lcross, i = "Entire home/apt",
-            j = "Private room", correction='border', nsim=999), xlab="distance(m)")
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)", main="Bishan 2021")
 ```
+
+  - From the above plot, we can see that there are signs that the distribution of Entire home/apt and Private room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
 
 ### Jurong West 2019
 
-Compute Cross L-function for Entire home/apt and Private room
+**Compute Cross L-function for Private room and Shared room**
 
-```{r}
-plot(Lcross(jurongw_2019_marked_ppp,
-            i = "Entire home/apt",
-            j = "Private room",
-            correction='border'))
-
-```
-
-Perform CSR Testing using Cross L-function for Entire home/apt and Private room
-
-```{r}
-plot(envelope(jurongw_2019_marked_ppp, Lcross, i = "Entire home/apt",
-            j = "Private room", correction='border', nsim=999), xlab="distance(m)")
-```
-
-
-```{r}
-plot(Lcross(jurongw_2019_marked_ppp,
-            i = "Entire home/apt",
-            j = "Shared room",
-            correction='border'))
-```
+We will analyse the relationship of Private room listings and Shared room listings using the Lcross function.
 
 ```{r}
 plot(Lcross(jurongw_2019_marked_ppp,
@@ -1270,22 +1498,31 @@ plot(Lcross(jurongw_2019_marked_ppp,
             correction='border'))
 ```
 
+  - Most of the distances are above the Theoretical Poisson Process (Red Dotted Line), therefore this implies that there the marked spatial point patterns are not statistically independent.
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at majority of the distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+**Perform CSR Testing using Cross L-function for Private room and Shared room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the Private room listings and Shared Room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the Private room listings and Shared Room listings are *NOT* spatially independent.
+
+```{r}
+plot(envelope(jurongw_2019_marked_ppp, Lcross, i = "Private room",
+            j = "Shared room", correction='border', nsim=999), xlab="distance(m)", main="Jurong West 2019")
+```
+
+  - From the above plot, we can see that there are signs that at most distances, distribution of Entire home/apt and Private room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
+  - However, at around 150m to 220m the empirical black line is outside the envelope, stating that Entire home/apt and Private room listings are not statistically independent.
 
 ### Jurong West 2021
 
-```{r}
-plot(Lcross(jurongw_2021_marked_ppp,
-            i = "Entire home/apt",
-            j = "Private room",
-            correction='border'))
-```
+**Compute Cross L-function for Private room and Shared room**
 
-```{r}
-plot(Lcross(jurongw_2021_marked_ppp,
-            i = "Entire home/apt",
-            j = "Shared room",
-            correction='border'))
-```
+We will analyse the relationship of Private room listings and Shared room listings using the Lcross function.
 
 ```{r}
 plot(Lcross(jurongw_2021_marked_ppp,
@@ -1294,18 +1531,68 @@ plot(Lcross(jurongw_2021_marked_ppp,
             correction='border'))
 ```
 
+  - From the above plot, we can see that the empirical blank line is below the theoretical line (red dotted line), this shows that the distribution of the Private room and Shared room listings are statistically independent.
+  - In addition, the black line is constant at 0. Therefore, we can infer that at most distances, Shared room listings are not found with reference to Private room Listings.
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are statistically independent, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+**Perform CSR Testing using Cross L-function for Private room and Shared room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the  Private room listings and Shared Room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the  Private room listings and Shared Room listings are *NOT* spatially independent.
+  
+```{r}
+plot(envelope(jurongw_2021_marked_ppp, Lcross, i = "Private room",
+            j = "Shared room", correction='border', nsim=999), xlab="distance(m)", main="Jurong West 2021")
+```
+
+  - From the above plot, we can see that there are signs that at most distances, distribution of Private room and Shared room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
+  
+
 ### Newton 2019
+
+**Compute Cross L-function for Entire home/apt and Private room**
+
+We will analyse the relationship of Entire home/apt listings and Private room listings using the Lcross function.
 
 ```{r}
 plot(Lcross(newton_2019_marked_ppp,
             i = "Entire home/apt",
             j = "Private room",
             correction='border'))
-
 ```
+
+
+  - From the above plot, we can see that the empirical blank line is below the theoretical line (red dotted line), this shows that the distribution of the Entire home/apt and Private room listings are not statistically independent are low distances up till 150m.
+  - However, above 150m the Entire home/apt and Private room listings are statistically independent.
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at majority of the distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+**Perform CSR Testing using Cross L-function for Entire home/apt and Private room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the  Entire home/apt listings and Private room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the  Entire home/apt listings and Private room listings are *NOT* spatially independent.
+  
+```{r}
+plot(envelope(newton_2019_marked_ppp, Lcross, i = "Entire home/apt",
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)", main="Newton 2019")
+```
+
+  - From the above plot, we can see that there are signs that at most distances, distribution of Entire home/apt and Private room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
+  - However, between 20m to 100m, the distribution of Entire home/apt and Private room listings are not statistically independent because the empirical black line falls above the envelope.
 
 ### Newton 2021
 
+**Compute Cross L-function for Entire home/apt and Private room**
+
+We will analyse the relationship of Entire home/apt listings and Private room listings using the Lcross function.
+
 ```{r}
 plot(Lcross(newton_2021_marked_ppp,
             i = "Entire home/apt",
@@ -1313,37 +1600,31 @@ plot(Lcross(newton_2021_marked_ppp,
             correction='border'))
 ```
 
+  - From the above plot, we can see that the empirical blank line is below the theoretical line (red dotted line), this shows that the distribution of the Entire home/apt and Private room listings are not statistically independent are low distances up till 200m.
+  - However, above 200m the Entire home/apt and Private room listings are statistically independent.
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at majority of the distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+**Perform CSR Testing using Cross L-function for Entire home/apt and Private room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the  Entire home/apt listings and Private room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the  Entire home/apt listings and Private room listings are *NOT* spatially independent.
+  
 ```{r}
-plot(Lcross(newton_2021_marked_ppp,
-            i = "Entire home/apt",
-            j = "Hotel room",
-            correction='border'))
+plot(envelope(newton_2021_marked_ppp, Lcross, i = "Entire home/apt",
+            j = "Private room", correction='border', nsim=999), xlab="distance(m)", main="Newton 2021")
 ```
 
-```{r}
-plot(Lcross(newton_2021_marked_ppp,
-            i = "Private room",
-            j = "Hotel room",
-            correction='border'))
-```
-       
+  - From the above plot, we can see that there are signs that at most distances, distribution of Entire home/apt and Private room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
 
 ### Woodlands 2019
 
-```{r}
-plot(Lcross(woodlands_2019_marked_ppp,
-            i = "Entire home/apt",
-            j = "Private room",
-            correction='border'))
+**Compute Cross L-function for Private room and Shared room**
 
-```
-
-```{r}
-plot(Lcross(woodlands_2019_marked_ppp,
-            i = "Entire home/apt",
-            j = "Shared room",
-            correction='border'))
-```
+We will analyse the relationship of Private room listings and Shared room listings using the Lcross function.
 
 ```{r}
 plot(Lcross(woodlands_2019_marked_ppp,
@@ -1352,22 +1633,32 @@ plot(Lcross(woodlands_2019_marked_ppp,
             correction='border'))
 ```
 
+  - From the above plot, we can see that the distribution of the Private room and Shared room are rather erratically independent.
+  - However, at most distances the distribution of the Private room and Shared room are not statistically independent.
+  - We can try to infer a pattern here and observe that at relatively regular intervals, the distribution of these 2 listings will become independent.
+
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at majority of the distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+**Perform CSR Testing using Cross L-function for Private room and Shared room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the Private room listings and Shared room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the Private room listings and Shared room listings are *NOT* spatially independent.
+  
+```{r}
+plot(envelope(woodlands_2019_marked_ppp, Lcross, i = "Private room",
+            j = "Shared room", correction='border', nsim=999), xlab="distance(m)", main="Woodlands 2019")
+```
+
+  - From the above plot, we can see that there are signs that at most distances, distribution of Entire home/apt and Private room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
 
 ### Woodlands 2021
 
-```{r}
-plot(Lcross(woodlands_2021_marked_ppp,
-            i = "Entire home/apt",
-            j = "Private room",
-            correction='border'))
-```
+**Compute Cross L-function for Private room and Shared room**
 
-```{r}
-plot(Lcross(woodlands_2021_marked_ppp,
-            i = "Entire home/apt",
-            j = "Shared room",
-            correction='border'))
-```
+We will analyse the relationship of Private room listings and Shared room listings using the Lcross function.
 
 ```{r}
 plot(Lcross(woodlands_2021_marked_ppp,
@@ -1376,4 +1667,22 @@ plot(Lcross(woodlands_2021_marked_ppp,
             correction='border'))
 ```
 
+  - From the above plot, we can see that the distribution of the Private room and Shared room are not statistically independent.
+  - However, for distances above around 380m the distribution of these 2 listings become independent.
 
+
+To confirm the observed spatial pattern and assess if the Marked Spatial Point Patterns are not statistically independent at majority of the distances, we then proceed to conduct Monte Carlo test with Lcross function to test the hypothesis.
+
+**Perform CSR Testing using Cross L-function for Private room and Shared room**
+
+Formulation:
+  
+  - Null-Hypothesis : The distribution of the Private room listings and Shared room listings are spatially independent.
+  - Alternative-Hypothesis : The distribution of the Private room listings and Shared room listings are *NOT* spatially independent.
+  
+```{r}
+plot(envelope(woodlands_2021_marked_ppp, Lcross, i = "Private room",
+            j = "Shared room", correction='border', nsim=999), xlab="distance(m)", main="Woodlands 2019")
+```
+
+  - From the above plot, we can see that there are signs that at most distances, distribution of Private room and Shared room listings are statistically independent. This is because, the empirical Lcross line is within the envelope.
