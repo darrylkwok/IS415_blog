@@ -1,0 +1,75 @@
+---
+title: "Take-Home Exercise 3"
+description: |
+  A short description of the post.
+author:
+  - name: Darryl Kwok
+    url: https://example.com/darrylkwok
+date: 10-22-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE, error = FALSE, fig.retina = 3, R.options = list(width = 60))
+```
+
+# Introduction
+
+## Overview
+
+## Installing relevant packages
+
+```{r echo=TRUE, eval=TRUE}
+packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse')
+for (p in packages){
+  if(!require(p, character.only = T)){
+    install.packages(p)
+  }
+  library(p,character.only = T)
+}
+```
+
+# Data 
+
+## Geospatial Data Import and Preparation
+
+```{r}
+mpsz <- st_read(dsn = "data/geospatial", layer = "MP14_SUBZONE_WEB_PL") %>%
+  st_transform(3414)
+```
+```{r}
+childcare_sf <- st_read("data/geospatial/child-care-services-geojson.geojson") %>%
+  st_transform(crs = 3414)
+```
+
+```{r}
+eldercare_sf <- st_read(dsn="data/geospatial", layer = "ELDERCARE") %>% 
+  st_transform(3414)
+```
+
+```{r}
+mrtlrt_sf <- st_read(dsn="data/geospatial", layer = "MRTLRTStnPtt") %>% 
+  st_transform(3414)
+```
+
+```{r}
+parks_sf <- st_read("data/geospatial/parks-geojson.geojson")  %>% 
+  st_transform(3414)
+```
+
+```{r}
+kinder_sf <- st_read("data/geospatial/kindergartens-geojson.geojson") %>% 
+  st_transform(3414)
+```
+
+
+## Aspatial Data Import and Preparation
+
+
+```{r}
+
+```
+
