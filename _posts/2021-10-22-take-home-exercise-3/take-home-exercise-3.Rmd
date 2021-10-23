@@ -104,7 +104,7 @@ The steps taken are:
   - Then, convert the text into a dataframe using the fromJSON() package from jsonlite library.
   - The output only contains the X, Y coordinates.
   
-```{r}
+```{r eval=FALSE}
 geocode_addr <- function(block, street_name) {
   url <- "https://developers.onemap.sg/commonapi/search"
   
@@ -124,7 +124,7 @@ geocode_addr <- function(block, street_name) {
 
 ```
 
-```{r}
+```{r eval=FALSE}
 
 resale_prices$X <- 0
 resale_prices$Y <- 0
@@ -138,7 +138,7 @@ for  (i in 1:nrow(resale_prices)) {
 }
 ```
 
-```{r}
+```{r eval=FALSE}
 write_csv(resale_prices, "data/aspatial/final_resale_prices.csv")
 ```
 
