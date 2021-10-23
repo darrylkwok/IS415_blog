@@ -16,6 +16,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE, error = FALSE, fig.retina = 3, R.options = list(width = 60))
 ```
 
+
 # Introduction
 
 ## Overview
@@ -23,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE
 ## Installing relevant packages
 
 ```{r echo=TRUE, eval=TRUE}
-packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse')
+packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse', 'httr', 'jsonlite')
 for (p in packages){
   if(!require(p, character.only = T)){
     install.packages(p)
@@ -68,8 +69,77 @@ kinder_sf <- st_read("data/geospatial/kindergartens-geojson.geojson") %>%
 
 ## Aspatial Data Import and Preparation
 
+We will make use of the read_csv function to read the resale flat prices that is obtained from data.gov.sg
+
+```{r}
+resale_prices <- read_csv("data/aspatial/resale-flat-prices-jan-2019-to-sept-2020.csv")
+```
+
+Since there are occurrences of "ST." in the CSV file, we will replace the "ST." occurrences to "SAINT"
+
+```{r}
+resale_prices$street_name <- gsub("ST\\.", "SAINT", resale_prices$street_name)
+```
+
+Lets take a look at the data that was just read in.
+
+```{r}
+glimpse(resale_prices)
+```
+
+We can see that the data read in from the CSV file, does not contain any coordinates. Therefore we will have to perform geocoding.
+
+## Create a Geocoding Function
+
+This function calls the search function of the commonapi of OneMap. 
+
+Since the search function of the API does not require a token, we will not use a token here. 
+
+The steps taken are:
+
+  - The function takes in 2 parameters, the block number and the street name.
+  - We will concatenate the 2 parameters together to create an address variable.
+  - This variable will be passed in as a search value in the query to the API.
+  - After getting the response, we will convert the response to a text.
+  - Then, convert the text into a dataframe using the fromJSON() package from jsonlite library.
+  - The output only contains the X, Y coordinates.
+  
+```{r}
+geocode_addr <- function(block, street_name) {
+  url <- "https://developers.onemap.sg/commonapi/search"
+  
+  search_addr <- paste(block, street_name, sep = " ")
+  
+  query <- list("searchVal" = search_addr, "returnGeom" = "Y", "getAddrDetails" = "N", "pageNum" = "1")
+  
+  res <- GET(url, query = query)
+  
+  jsonRespText<-content(res,as="text") 
+  output <- fromJSON(jsonRespText)  %>% 
+    as.data.frame %>%
+    select(results.X, results.Y)
+  
+  return(output)
+}
+
+```
 
 ```{r}
 
+resale_prices$X <- 0
+resale_prices$Y <- 0
+
+for  (i in 1:nrow(resale_prices)) {
+  temp_output <- geocode_addr(resale_prices[i, 4], resale_prices[i, 5])
+  
+  resale_prices$X[i] <- temp_output$results.X
+  resale_prices$Y[i] <- temp_output$results.Y
+  
+}
 ```
+
+```{r}
+write_csv(resale_prices, "data/aspatial/final_resale_prices.csv")
+```
+
 
