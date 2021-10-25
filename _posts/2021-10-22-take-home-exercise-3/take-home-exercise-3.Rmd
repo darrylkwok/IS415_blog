@@ -41,6 +41,7 @@ for (p in packages){
 mpsz <- st_read(dsn = "data/geospatial", layer = "MP14_SUBZONE_WEB_PL") %>%
   st_transform(3414)
 ```
+
 ```{r}
 childcare_sf <- st_read("data/geospatial/child-care-services-geojson.geojson") %>%
   st_transform(crs = 3414)
@@ -71,25 +72,21 @@ kinder_sf <- st_read("data/geospatial/kindergartens-geojson.geojson") %>%
 
 We will make use of the read_csv function to read the resale flat prices that is obtained from data.gov.sg
 
-```{r}
+```{r eval=FALSE}
 resale_prices <- read_csv("data/aspatial/resale-flat-prices-jan-2019-to-sept-2020.csv")
 ```
 
 Since there are occurrences of "ST." in the CSV file, we will replace the "ST." occurrences to "SAINT"
 
-```{r}
+```{r eval=FALSE}
 resale_prices$street_name <- gsub("ST\\.", "SAINT", resale_prices$street_name)
 ```
 
-Lets take a look at the data that was just read in.
 
-```{r}
-glimpse(resale_prices)
-```
 
 We can see that the data read in from the CSV file, does not contain any coordinates. Therefore we will have to perform geocoding.
 
-## Create a Geocoding Function
+### Create a Geocoding Function
 
 This function calls the search function of the commonapi of OneMap. 
 
@@ -117,7 +114,7 @@ geocode_addr <- function(block, street_name) {
   jsonRespText<-content(res,as="text") 
   output <- fromJSON(jsonRespText)  %>% 
     as.data.frame %>%
-    select(results.X, results.Y)
+    select(results.LATITUDE, results.LONGITUDE)
   
   return(output)
 }
@@ -126,14 +123,14 @@ geocode_addr <- function(block, street_name) {
 
 ```{r eval=FALSE}
 
-resale_prices$X <- 0
-resale_prices$Y <- 0
+resale_prices$LATITUDE <- 0
+resale_prices$LONGITUDE <- 0
 
 for  (i in 1:nrow(resale_prices)) {
   temp_output <- geocode_addr(resale_prices[i, 4], resale_prices[i, 5])
   
-  resale_prices$X[i] <- temp_output$results.X
-  resale_prices$Y[i] <- temp_output$results.Y
+  resale_prices$LATITUDE[i] <- temp_output$results.LATITUDE
+  resale_prices$LONGITUDE[i] <- temp_output$results.LONGITUDE
   
 }
 ```
@@ -141,5 +138,61 @@ for  (i in 1:nrow(resale_prices)) {
 ```{r eval=FALSE}
 write_csv(resale_prices, "data/aspatial/final_resale_prices.csv")
 ```
+
+Read in the completed version of the Resale Prices with the geometry data.
+
+```{r}
+resale_prices <- read_csv("data/aspatial/final_resale_prices.csv")
+```
+
+After importing the data, we have to examine the data.
+
+```{r}
+glimpse(resale_prices)
+```
+
+### Convert Aspatial dataframe into sf object
+
+```{r}
+resale_prices_sf <- st_as_sf(resale_prices,
+                             coords = c("LONGITUDE", "LATITUDE"),
+                             crs=4326) %>%
+  st_transform(crs=3414)
+
+head(resale_prices_sf)
+```
+
+```{r}
+ggplot(data=resale_prices_sf, aes(x=`resale_price`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+```
+
+```{r}
+resale_prices_sf <- resale_prices_sf %>%
+  mutate(`log_resale_price` = log(resale_price))
+```
+
+```{r}
+ggplot(data=resale_prices_sf, aes(x=`log_resale_price`)) +
+  geom_histogram(bins=20, color="black", fill="light blue")
+```
+
+```{r}
+proxmat <- dist(resale_prices_sf, method = "euclidean")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
