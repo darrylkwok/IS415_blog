@@ -67,6 +67,27 @@ kinder_sf <- st_read("data/geospatial/kindergartens-geojson.geojson") %>%
   st_transform(3414)
 ```
 
+## Create a function to preprocess the geospatial datasets
+
+The actions taken will be:
+
+  - Ensure that the geometry is valid
+  - Remove Duplicates
+
+```{r}
+geo_preprocess <- function(df) {
+  df <- df[!duplicated(df$ADDRESSPOS), ] %>% 
+    st_make_valid()
+    
+  return(df)
+}
+
+```
+
+```{r}
+eldercare_sf <- geo_preprocess(eldercare_sf)
+```
+
 
 ## Aspatial Data Import and Preparation
 
@@ -178,9 +199,15 @@ ggplot(data=resale_prices_sf, aes(x=`log_resale_price`)) +
 ```
 
 ```{r}
-dist_matrix <- st_distance(resale_prices_sf, eldercare_sf)
-resale_prices_sf$distance <- rowMins(dist_matrix)
+dist_matrix <- st_distance(resale_prices_sf, eldercare_sf) %>% 
+  drop_units()
+dist_matrix <- data.frame(dist_matrix)
 ```
+
+```{r}
+resale_prices_sf$number <- rowSums(dist_matrix <= 350)
+```
+
 
 
 
