@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE
 ## Installing relevant packages
 
 ```{r echo=TRUE, eval=TRUE}
-packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse', 'httr', 'jsonlite')
+packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse', 'httr', 'jsonlite', 'matrixStats', 'raster', 'geosphere')
 for (p in packages){
   if(!require(p, character.only = T)){
     install.packages(p)
@@ -178,11 +178,9 @@ ggplot(data=resale_prices_sf, aes(x=`log_resale_price`)) +
 ```
 
 ```{r}
-proxmat <- dist(resale_prices_sf, method = "euclidean")
+dist_matrix <- st_distance(resale_prices_sf, eldercare_sf)
+resale_prices_sf$distance <- rowMins(dist_matrix)
 ```
-
-
-
 
 
 
