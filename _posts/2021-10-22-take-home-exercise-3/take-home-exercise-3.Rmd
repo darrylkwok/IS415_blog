@@ -271,7 +271,7 @@ In order to save time having to rerun the pre-processing functions again, we wil
 
 *Note: This is done after all the preprocessing and creation of new columns**
 
-After writing the sf object to a shapefile, the column names will be truncated.
+**After writing the sf object to a shapefile, the column names will be truncated.**
 
 ```{r eval=FALSE}
 st_write(resale_prices_sf, "data/final_resale_info.shp")
