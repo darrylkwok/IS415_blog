@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE
 ## Installing relevant packages
 
 ```{r echo=TRUE, eval=TRUE}
-packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse', 'httr', 'jsonlite', 'matrixStats', 'raster', 'geosphere')
+packages = c('olsrr', 'corrplot', 'ggpubr', 'sf', 'spdep', 'GWmodel', 'tmap', 'tidyverse', 'httr', 'jsonlite', 'matrixStats', 'raster', 'geosphere', 'units')
 for (p in packages){
   if(!require(p, character.only = T)){
     install.packages(p)
@@ -67,6 +67,21 @@ kinder_sf <- st_read("data/geospatial/kindergartens-geojson.geojson") %>%
   st_transform(3414)
 ```
 
+```{r}
+hawkers_sf <- st_read("data/geospatial/hawker-centres-geojson.geojson") %>% 
+  st_transform(3414)
+```
+
+```{r}
+supermkts_sf <- st_read("data/geospatial/supermarkets-geojson.geojson") %>% 
+  st_transform(3414)
+```
+
+```{r}
+busstops_sf <- st_read(dsn="data/geospatial", layer = "BusStop")%>% 
+  st_transform(3414)
+```
+
 ## Create a function to preprocess the geospatial datasets
 
 The actions taken will be:
@@ -75,17 +90,25 @@ The actions taken will be:
   - Remove Duplicates
 
 ```{r}
-geo_preprocess <- function(df) {
-  df <- df[!duplicated(df$ADDRESSPOS), ] %>% 
+geo_preprocess <- function(df, add_col) {
+  df <- df[!duplicated(df[, add_col]), ] %>% 
     st_make_valid()
     
   return(df)
 }
-
 ```
 
+### Execute the Preprocessing function on the geospatial datasets
+
 ```{r}
-eldercare_sf <- geo_preprocess(eldercare_sf)
+childcare_sf <- geo_preprocess(childcare_sf, "geometry")
+eldercare_sf <- geo_preprocess(eldercare_sf, "ADDRESSPOS")
+mrtlrt_sf <- geo_preprocess(mrtlrt_sf, "STN_NAME")
+parks_sf <- geo_preprocess(parks_sf, "geometry")
+kinder_sf <- geo_preprocess(kinder_sf, "geometry")
+hawkers_sf <- geo_preprocess(hawkers_sf, "geometry")
+supermkts_sf <- geo_preprocess(supermkts_sf, "geometry")
+busstops_sf <- geo_preprocess(busstops_sf, "geometry")
 ```
 
 
@@ -156,65 +179,131 @@ for  (i in 1:nrow(resale_prices)) {
 }
 ```
 
+
+This function converts the actual remaining lease period from a string format to a double format
+
 ```{r eval=FALSE}
-write_csv(resale_prices, "data/aspatial/final_resale_prices.csv")
+cal_remain_lease <- function(each_col) {
+  entry_list <- unlist(strsplit(each_col, '\\s+')[[1]])
+  
+  if (length(entry_list) > 2) {
+    years <- as.numeric(unlist(entry_list[1]))
+    months <-as.numeric(unlist(entry_list[3]))
+    total_dur <- years + round((months/12), 2)
+  } else {
+    years <- as.numeric(unlist(entry_list[1]))
+    total_dur <- years
+  }
+  
+  return(unlist(total_dur))
+}
 ```
 
-Read in the completed version of the Resale Prices with the geometry data.
+Calculate the remaining lease duration for each record
 
-```{r}
-resale_prices <- read_csv("data/aspatial/final_resale_prices.csv")
+```{r eval=FALSE}
+resale_prices$remaining_lease <- sapply(resale_prices$remaining_lease, cal_remain_lease)
 ```
 
-After importing the data, we have to examine the data.
 
-```{r}
-glimpse(resale_prices)
-```
+## Create a Dataframe to store the Central Business District of Singapore
 
-### Convert Aspatial dataframe into sf object
+The Downtown Core is one of the central districts of Singapore. Located in the Marina Bay Area, in the SouthWest part of the country. 
 
-```{r}
-resale_prices_sf <- st_as_sf(resale_prices,
-                             coords = c("LONGITUDE", "LATITUDE"),
-                             crs=4326) %>%
+After creating the dataframe, convert the dataframe into a sf object
+
+```{r eval=FALSE}
+lat <- 1.287953
+long <- 103.851784
+cbd_coor_sf <- data.frame(lat, long) %>%
+  st_as_sf(., coords = c("long", "lat"), crs=4326) %>%
   st_transform(crs=3414)
-
-head(resale_prices_sf)
 ```
+
+## Define functions to generate new columns
+
+This function is to find the distance to the nearest facility
+
+```{r eval=FALSE}
+prox_prep <- function(prim_df, sec_df, var_name) {
+  dist_matrix <- st_distance(prim_df, sec_df) %>% 
+    drop_units()
+  prim_df[,var_name] <- rowMins(dist_matrix) 
+  
+  return(prim_df)
+}
+```
+
+This function is to count the number of facility within a radius
+
+```{r eval=FALSE}
+num_prep <- function(prim_df, sec_df, radius, var_name) {
+  dist_matrix <- st_distance(prim_df, sec_df) %>% 
+    drop_units()
+
+  dist_matrix <- data.frame(dist_matrix)
+  prim_df[,var_name] <- rowSums(dist_matrix <= radius)
+  
+  return(prim_df)
+}
+```
+
+Create Facility Proximity columns
+
+```{r eval=FALSE}
+resale_prices_sf <- prox_prep(resale_prices_sf, eldercare_sf, "PROX_ELDER") %>%
+  prox_prep(., mrtlrt_sf, "PROX_MRTLRT") %>%
+  prox_prep(., parks_sf, "PROX_PARK") %>% 
+  prox_prep(., hawkers_sf, "PROX_HAWKER") %>%
+  prox_prep(., cbd_coor_sf, "PROX_CBD") %>% 
+  prox_prep(., supermkts_sf, "PROX_SPRMKTS")
+```
+
+Create number of Facilities columns
+
+```{r eval=FALSE}
+resale_prices_sf <- num_prep(resale_prices_sf, childcare_sf, 350, "NUM_CC") %>%
+  num_prep(., kinder_sf, 350, "NUM_KINDER") %>%
+  num_prep(., busstops_sf, 350, "NUM_BUSSTOPS")
+```
+
+In order to save time having to rerun the pre-processing functions again, we will write the dataframe to a csv and read in when we need it. 
+
+*Note: This is done after all the preprocessing and creation of new columns**
+
+After writing the sf object to a shapefile, the column names will be truncated.
+
+```{r eval=FALSE}
+st_write(resale_prices_sf, "data/final_resale_info.shp")
+```
+
+Read in the shapefile that contains all the information created earlier
 
 ```{r}
-ggplot(data=resale_prices_sf, aes(x=`resale_price`)) +
-  geom_histogram(bins=20, color="black", fill="light blue")
+resale_prices_sf <- st_read(dsn="data", layer="final_resale_info")
 ```
+
+
+Visualise the different columns of the resale_prices_sf
+
+```{r}
+glimpse(resale_prices_sf)
+```
+
+Here the truncated column names will be rename for a better understanding of the columns. 
 
 ```{r}
 resale_prices_sf <- resale_prices_sf %>%
-  mutate(`log_resale_price` = log(resale_price))
+  rename(floor_area_sqm = flr_r_s,
+         remaining_lease = rmnng_l,
+         resale_price = rsl_prc,
+         PROX_CBD = PROX_CB,
+         PROX_ELDER = PROX_EL,
+         PROX_MRTLRT = PROX_MR,
+         PROX_PARK = PROX_PA,
+         PROX_HAWKER = PROX_HA,
+         PROX_SPRMRT = PROX_SP)
 ```
-
-```{r}
-ggplot(data=resale_prices_sf, aes(x=`log_resale_price`)) +
-  geom_histogram(bins=20, color="black", fill="light blue")
-```
-
-```{r}
-dist_matrix <- st_distance(resale_prices_sf, eldercare_sf) %>% 
-  drop_units()
-dist_matrix <- data.frame(dist_matrix)
-```
-
-```{r}
-resale_prices_sf$number <- rowSums(dist_matrix <= 350)
-```
-
-
-
-
-
-
-
-
 
 
 
