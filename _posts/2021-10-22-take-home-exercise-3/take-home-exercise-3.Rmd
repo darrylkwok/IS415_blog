@@ -82,7 +82,7 @@ busstops_sf <- st_read(dsn="data/geospatial", layer = "BusStop")%>%
   st_transform(3414)
 ```
 
-## Create a function to preprocess the geospatial datasets
+### Create a function to preprocess the geospatial datasets
 
 The actions taken will be:
 
@@ -101,6 +101,7 @@ geo_preprocess <- function(df, add_col) {
 ### Execute the Preprocessing function on the geospatial datasets
 
 ```{r}
+mpsz <- geo_preprocess(mpsz, "geometry")
 childcare_sf <- geo_preprocess(childcare_sf, "geometry")
 eldercare_sf <- geo_preprocess(eldercare_sf, "ADDRESSPOS")
 mrtlrt_sf <- geo_preprocess(mrtlrt_sf, "STN_NAME")
@@ -269,7 +270,7 @@ resale_prices_sf <- num_prep(resale_prices_sf, childcare_sf, 350, "NUM_CC") %>%
 
 In order to save time having to rerun the pre-processing functions again, we will write the dataframe to a csv and read in when we need it. 
 
-*Note: This is done after all the preprocessing and creation of new columns**
+*Note: This is done after all the preprocessing and creation of new columns*
 
 **After writing the sf object to a shapefile, the column names will be truncated.**
 
@@ -304,6 +305,245 @@ resale_prices_sf <- resale_prices_sf %>%
          PROX_HAWKER = PROX_HA,
          PROX_SPRMRT = PROX_SP)
 ```
+
+## Exploratory Data Analysis
+
+EDA is done before any modeling or steps to get a better understanding of all the variables.
+
+
+### Box Plots
+
+#### Box Plot for the Resale Prices
+
+Summary Statistics for Resale Prices
+
+```{r}
+summary(resale_prices_sf$resale_price)
+```
+
+Box plot for Resale Prices
+
+```{r}
+ggplot(resale_prices_sf, aes(x = '', y = resale_price)) +
+  geom_boxplot() + 
+  labs(x='', y='Resale Price') +
+  theme_minimal()
+```
+
+  - It can be observed that there is 1 upper outlier of $1186888 for the Resale Price.
+  - The median of the Resale Prices can be seen to be $405000
+
+### Histograms
+
+#### Create a function to plot the histogram for the variables
+
+#### Distribution of the Resale Prices
+
+```{r}
+ggplot(resale_prices_sf, aes(x = resale_price)) + 
+  geom_histogram(fill = 'darksalmon') +
+  labs(title = "Distribution of Resale Prices",
+       x = "Resale Prices",
+       y = 'Frequency') +
+  theme_minimal()
+```
+
+  - The distribution of the Resale Prices are right-skewed. 
+  - Majority of the Resale prices range from $250000 to $500000
+
+#### Distribution of the independent variables
+
+The independent variables consists of:
+  
+  - floor_area_sqm
+  - remaining_lease
+  - Proximity to CBD
+  - Proximity to Eldercare
+  - Proximity to MRT/LRT
+  - Proximity to Park
+  - Proximity to Hawkers
+  - Proximity to Supermarkets
+  - Number of Childcares within 350m
+  - Number of Kindergarten within 350m
+  - Number of Bus stops within 350m
+
+```{r}
+AREA_SQM <- ggplot(resale_prices_sf, aes(x = floor_area_sqm)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+REMAIN_LEASE <- ggplot(resale_prices_sf, aes(x = remaining_lease)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+PROX_CBD <- ggplot(resale_prices_sf, aes(x = PROX_CBD)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+PROX_ELDER <- ggplot(resale_prices_sf, aes(x = PROX_ELDER)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+PROX_MRTLRT <- ggplot(resale_prices_sf, aes(x = PROX_MRTLRT)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+PROX_PARK <- ggplot(resale_prices_sf, aes(x = PROX_PARK)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+PROX_HAWKER <- ggplot(resale_prices_sf, aes(x = PROX_HAWKER)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+PROX_SPRMRT <- ggplot(resale_prices_sf, aes(x = PROX_SPRMRT)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+NUM_CC <- ggplot(resale_prices_sf, aes(x = NUM_CC)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+NUM_KIN <- ggplot(resale_prices_sf, aes(x = NUM_KIN)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+NUM_BUS <- ggplot(resale_prices_sf, aes(x = NUM_BUS)) + 
+  geom_histogram(bins=20, fill = 'lightblue') +
+  theme_minimal()
+
+ggarrange(AREA_SQM, REMAIN_LEASE, PROX_CBD, PROX_ELDER, PROX_MRTLRT, PROX_PARK, PROX_HAWKER, PROX_SPRMRT, NUM_CC, NUM_KIN, NUM_BUS, ncol = 3, nrow = 4)
+```
+
+
+#### Top 10 Towns with the highest Resale Prices 
+
+Create a new dataframe called **towns_avg**. This dataframe consists of the average Resale Price of each town.
+
+*After calculating the average, rescale the resale price by dividing it by 100000. This is to ensure that the values are more easily understandable when plotted.*
+
+```{r}
+towns_avg <- aggregate(resale_prices_sf[,"resale_price"], list(resale_prices_sf$town), mean) %>%
+  rename(town = Group.1)
+
+towns_avg$resale_price <- sapply(towns_avg$resale_price, function(x) x/100000)
+```
+
+```{r}
+top10_price = top_n(towns_avg, 10, resale_price)
+
+ggplot(top10_price, aes(x=resale_price, y=reorder(town, resale_price), label=round(resale_price, 2))) +
+  geom_col(fill='darksalmon') +
+  labs(title='Top 10 Towns with the highest Average Resale Prices',
+       x='Resale Price ($100000)',
+       y='Town') +
+  geom_text(nudge_x=0.01, colour='gray23', size=3.5) +
+  theme_minimal()
+```
+
+
+#### Statistical Point Map
+
+This is to reveal the geospatial distribution of the Resale Prices in Singapore.
+
+```{r}
+tmap_mode("view")
+
+tm_shape(mpsz)+
+  tm_polygons() +
+tm_shape(resale_prices_sf) +  
+  tm_dots(col = "resale_price",
+          alpha = 0.6,
+          style="quantile") +
+  tm_view(set.zoom.limits = c(11,14))
+
+tmap_mode("plot")
+
+```
+
+
+# Regression
+
+## Multiple Linear Regression Model
+
+### Visualising the relationships of the independent variables
+
+```{r}
+var_list <- c("floor_area_sqm", "remaining_lease", "PROX_CBD", "PROX_ELDER", "PROX_MRTLRT", "PROX_PARK", "PROX_HAWKER", "PROX_SPRMRT", "NUM_CC", "NUM_KIN", "NUM_BUS")
+
+resale_prices <- resale_prices_sf %>%
+  st_drop_geometry()
+
+corrplot(cor(resale_prices[, var_list]), diag = FALSE, order = "AOE",
+         tl.pos = "td", tl.cex = 0.5, method = "number", type = "upper")
+```
+
+  - From above, we can observe that there are no 2 variables that are highly correlated with each other. Therefore, we will not remove any variables.
+
+### Building the Multi-Linear Regression Model
+
+```{r}
+resale_mlr <- lm(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data = resale_prices_sf) 
+
+summary(resale_mlr)
+```
+
+  - From the above report, it can be observed that all the independent variables are statistically significant. Therefore, we will proceed to keep all the variables for further analysis.
+  
+
+```{r}
+ols_regress(resale_mlr)
+```
+
+## Testing the assumptions of Linear Regression 
+
+### Multi-Collinearity Test
+
+```{r}
+ols_vif_tol(resale_mlr)
+```
+
+### Non-linearity Test
+
+```{r}
+ols_plot_resid_fit(resale_mlr)
+```
+
+### Normality Assumption Test
+
+```{r}
+ols_plot_resid_hist(resale_mlr)
+```
+
+### Spatial Autocorrelation Test
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
