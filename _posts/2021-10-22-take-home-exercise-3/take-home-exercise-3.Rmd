@@ -517,20 +517,105 @@ ols_plot_resid_hist(resale_mlr)
 
 ### Spatial Autocorrelation Test
 
-```{r}
+Since the hedonic model we are building are using geographically referenced attributes, it is important for us to visualise the residuals of the pricing model.
 
+Retrieve the residuals of the pricing model and save it as a dataframe
+
+```{r}
+mlr_output <- as.data.frame(resale_mlr$residuals)
+```
+
+Then join the newly created dataframe to the resale_prices_sf
+
+```{r}
+resale_prices_res_sf <- cbind(resale_prices_sf, 
+                        mlr_output) %>% 
+  rename(MLR_RES = resale_mlr.residuals)
+```
+
+Since the **spdep** package can only be used to process sp conformed spatial data objects, we will convert the resale_prices_res_sg to Spatial Objects.
+
+```{r}
+resale_prices_res_sp <- as_Spatial(resale_prices_res_sf)
+
+resale_prices_res_sp
+```
+
+After converting, we will use the tmap package to visualise the distribution of the residuals on an interactive map for a more in-depth analysis.
+
+```{r}
+tmap_mode("view")
+
+tm_shape(mpsz)+
+  tm_polygons(alpha = 0.4) +
+tm_shape(resale_prices_res_sp) +  
+  tm_dots(col = "MLR_RES",
+          alpha = 0.6,
+          style="quantile") +
+  tm_view(set.zoom.limits = c(11,14))
+
+tmap_mode("plot")
+```
+
+
+Compute the distance-based weight matrix.
+
+This will be performed by using dnearneigh function of the **spdep** function.
+
+```{r}
+nb <- dnearneigh(coordinates(resale_prices_res_sp), 0, 1500, longlat = FALSE)
+```
+
+We will then convert the output neighbours list into spatial weights
+
+```{r}
+nb_lw <- nb2listw(nb, style = "W")
+```
+
+Perform Moran's I test for residual spatial autocorrelation
+
+```{r}
+lm.morantest(resale_mlr, nb_lw)
 ```
 
 
 
+## Regression with Geographic Weighted Regression Models
+
+### Adaptive Bandwidth Geographic 
+
+```{r}
+bw_adaptive <- bw.gwr(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data = resale_prices_res_sp, approach="CV", kernel="gaussian", adaptive=TRUE, longlat=FALSE)
+```
+
+Construct the Geographic Weighted Regression Model
+
+```{r}
+gwr_adaptive <- gwr.basic(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data=resale_prices_res_sp, bw=bw_adaptive, kernel = 'gaussian', adaptive=TRUE, longlat = FALSE)
+
+gwr_adaptive
+```
 
 
+## Visualising GWR Output
 
+### Converting SDF into sf dataframe
 
+```{r}
+resale_prices_sf_adaptive <- st_as_sf(gwr_adaptive$SDF) %>%
+  st_transform(crs=3414)
+```
 
-
-
-
+```{r}
+tmap_mode("view")
+tm_shape(mpsz)+
+  tm_polygons(alpha = 0.1) +
+tm_shape(resale_prices_sf_adaptive) +  
+  tm_dots(col = "Local_R2",
+          border.col = "gray60",
+          border.lwd = 1) +
+  tm_view(set.zoom.limits = c(11,14))
+```
 
 
 
