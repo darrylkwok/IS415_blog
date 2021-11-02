@@ -35,47 +35,79 @@ for (p in packages){
 
 # Data 
 
+The following datasets will be used for our analysis:
+
+  - *resale-flat-prices-jan-2019-to-sept-2020*, a CSV file that contains the HDB Resale Flat Prices from Jan 2019 to Sept 2020. Downloaded from data.gov.sg but manually extracted the specific time period.
+  - *MRTLRTStnPTT*, a Shapefile that contains location information of the Train Services in Singapore. Downloaded from LTA Data Mall
+  - *MP14_SUBZONE_WEB_PL*, a Shapefile that contains the different subzone information in Singapore. Downloaded from data.gov.sg
+  - *kindergartens-geojson*, a geojson file that contains the information of the kindergartens in Singapore. Downloaded from data.gov.sg
+  - *ELDERCARE*, a shapefile that contains location information of the Elderly Care Services in Singapore. Downloaded from data.gov.sg
+  - *BusStop"*, a shapefile that contains location information of the different Bus Stops in Singapore. Downloaded from LTA DataMall
+  - *parks-geojson*, a geojson file that contains the location information of the different parks in Singapore. Downloaded from data.gov.sg
+  - *supermarkets-geojson*, a geojson file that contains the location information of the different supermarkets in Singapore. Downloaded from data.gov.sg
+  - *child-care-services-geojson*, a geojson file that contains the location information of the different childcare services in Singapore. Downloaded from data.gov.sg
+  - *hawker-centres-geojson*, a geojson file that contains the location information of the different hawkers/foodcourts in Singapore. Downloaded from data.gov.sg
+
+
 ## Geospatial Data Import and Preparation
+
+*MP14_SUBZONE_WEB_PL* is the URA Master Plan planning subzone boundaries.
 
 ```{r}
 mpsz <- st_read(dsn = "data/geospatial", layer = "MP14_SUBZONE_WEB_PL") %>%
   st_transform(3414)
 ```
 
+*child-care-services-geojson* is the geospatial information of the Childcare Services in Singapore.
+
 ```{r}
 childcare_sf <- st_read("data/geospatial/child-care-services-geojson.geojson") %>%
   st_transform(crs = 3414)
 ```
+
+*ELDERCARE* is the geospatial information of the Elderly Care Services in Singapore.
 
 ```{r}
 eldercare_sf <- st_read(dsn="data/geospatial", layer = "ELDERCARE") %>% 
   st_transform(3414)
 ```
 
+*MRTLRTStnPtt* is the geospatial information of the MRT and LRT Stations in Singapore.
+
 ```{r}
 mrtlrt_sf <- st_read(dsn="data/geospatial", layer = "MRTLRTStnPtt") %>% 
   st_transform(3414)
 ```
+
+*parks-geojson* is the geospatial information of the Parks in Singapore.
 
 ```{r}
 parks_sf <- st_read("data/geospatial/parks-geojson.geojson")  %>% 
   st_transform(3414)
 ```
 
+*kindergartens-geojson* is the geospatial information of the Kindergartens in Singapore.
+
 ```{r}
 kinder_sf <- st_read("data/geospatial/kindergartens-geojson.geojson") %>% 
   st_transform(3414)
 ```
+
+*hawker-centres-geojson* is the geospatial information of the Hawker Centres in Singapore.
 
 ```{r}
 hawkers_sf <- st_read("data/geospatial/hawker-centres-geojson.geojson") %>% 
   st_transform(3414)
 ```
 
+*supermarkets-geojson* is the geospatial information of the Supermarkets in Singapore.
+
 ```{r}
 supermkts_sf <- st_read("data/geospatial/supermarkets-geojson.geojson") %>% 
   st_transform(3414)
 ```
+
+*busStop* is the geospatial information of the BusStops in Singapore.
 
 ```{r}
 busstops_sf <- st_read(dsn="data/geospatial", layer = "BusStop")%>% 
@@ -100,6 +132,8 @@ geo_preprocess <- function(df, add_col) {
 
 ### Execute the Preprocessing function on the geospatial datasets
 
+The Geospatial Pre-processing function will be executed on all the Geospatial Data imported.
+
 ```{r}
 mpsz <- geo_preprocess(mpsz, "geometry")
 childcare_sf <- geo_preprocess(childcare_sf, "geometry")
@@ -116,6 +150,8 @@ busstops_sf <- geo_preprocess(busstops_sf, "geometry")
 ## Aspatial Data Import and Preparation
 
 We will make use of the read_csv function to read the resale flat prices that is obtained from data.gov.sg
+
+  - The CSV file contains the HDB resale prices from jan 2019 to sept 2020. 
 
 ```{r eval=FALSE}
 resale_prices <- read_csv("data/aspatial/resale-flat-prices-jan-2019-to-sept-2020.csv")
@@ -166,6 +202,8 @@ geocode_addr <- function(block, street_name) {
 
 ```
 
+Execute the Geocoding function defined above to all the rows within the dataset imported from **resale-flat-prices-jan-2019-to-sept-2020.csv** 
+
 ```{r eval=FALSE}
 
 resale_prices$LATITUDE <- 0
@@ -180,8 +218,12 @@ for  (i in 1:nrow(resale_prices)) {
 }
 ```
 
-
 This function converts the actual remaining lease period from a string format to a double format
+
+Steps Taken:
+  - Split the string within the remaining_lease column.
+  - If the string length is 4, it contains months. Else it contains years only.
+  - Output the final value as a double.
 
 ```{r eval=FALSE}
 cal_remain_lease <- function(each_col) {
@@ -200,7 +242,7 @@ cal_remain_lease <- function(each_col) {
 }
 ```
 
-Calculate the remaining lease duration for each record
+Calculate the remaining lease duration for each record by executing the function defined above.
 
 ```{r eval=FALSE}
 resale_prices$remaining_lease <- sapply(resale_prices$remaining_lease, cal_remain_lease)
@@ -225,6 +267,11 @@ cbd_coor_sf <- data.frame(lat, long) %>%
 
 This function is to find the distance to the nearest facility
 
+Steps Taken:
+  - Make use of **st_distance** method to calculate the distances between all the HDBs and the facility in question.
+  - A matrix will be generated from the function **st_function**
+  - **rowMins** is used to get the shortest distance for each row within the matrix.
+
 ```{r eval=FALSE}
 prox_prep <- function(prim_df, sec_df, var_name) {
   dist_matrix <- st_distance(prim_df, sec_df) %>% 
@@ -236,6 +283,11 @@ prox_prep <- function(prim_df, sec_df, var_name) {
 ```
 
 This function is to count the number of facility within a radius
+
+Steps Taken:
+  - Make use of **st_distance** method to calculate the distances between all the HDBs and the facility in question.
+  - Convert the matrix generated into a dataframe.
+  - Filter out and count the number of facilities that are within a certain radius.
 
 ```{r eval=FALSE}
 num_prep <- function(prim_df, sec_df, radius, var_name) {
@@ -251,6 +303,8 @@ num_prep <- function(prim_df, sec_df, radius, var_name) {
 
 Create Facility Proximity columns
 
+  - This is done by executing the **prox_prep()** function defined above.
+
 ```{r eval=FALSE}
 resale_prices_sf <- prox_prep(resale_prices_sf, eldercare_sf, "PROX_ELDER") %>%
   prox_prep(., mrtlrt_sf, "PROX_MRTLRT") %>%
@@ -261,6 +315,8 @@ resale_prices_sf <- prox_prep(resale_prices_sf, eldercare_sf, "PROX_ELDER") %>%
 ```
 
 Create number of Facilities columns
+
+  - This is done by executing the **num_prep()** function defined above.
 
 ```{r eval=FALSE}
 resale_prices_sf <- num_prep(resale_prices_sf, childcare_sf, 350, "NUM_CC") %>%
@@ -280,6 +336,8 @@ st_write(resale_prices_sf, "data/final_resale_info.shp")
 
 Read in the shapefile that contains all the information created earlier
 
+  - This sf object contains all the geographical information of the HDBs as well as variables such as Proximity to a certain facility or the number of facilities within a certain radius of the HDB.
+
 ```{r}
 resale_prices_sf <- st_read(dsn="data", layer="final_resale_info")
 ```
@@ -292,6 +350,8 @@ glimpse(resale_prices_sf)
 ```
 
 Here the truncated column names will be rename for a better understanding of the columns. 
+
+  - After pre-processing, we save the sf object as a shapefile. In the process of doing that, most of the column names are truncated. Therefore, we are renaming them in order to better understand the columns.
 
 ```{r}
 resale_prices_sf <- resale_prices_sf %>%
@@ -441,10 +501,13 @@ ggplot(top10_price, aes(x=resale_price, y=reorder(town, resale_price), label=rou
   theme_minimal()
 ```
 
+  - From the above plot, we can see that the average HDB resale prices are the highest in Central Area with Queenstown's prices not far behind.
+  - This could be due to the fact that these are considered prime and central locations in Singapore.
+
 
 #### Statistical Point Map
 
-This is to reveal the geospatial distribution of the Resale Prices in Singapore.
+This is to reveal the Geospatial distribution of the Resale Prices in Singapore.
 
 ```{r}
 tmap_mode("view")
@@ -461,12 +524,15 @@ tmap_mode("plot")
 
 ```
 
+  - From the above plot, we can see that the prices around the Central Area of Singapore has the darkest colors. This means that the HDB resale prices are generally higher in those areas.
 
 # Regression
 
 ## Multiple Linear Regression Model
 
 ### Visualising the relationships of the independent variables
+
+By visualising the relationships of the independent variables in a correlation heatmap allows us to remove highly correlated variables that will affect the accuracy of the subsequent regression models that we will build.
 
 ```{r}
 var_list <- c("floor_area_sqm", "remaining_lease", "PROX_CBD", "PROX_ELDER", "PROX_MRTLRT", "PROX_PARK", "PROX_HAWKER", "PROX_SPRMRT", "NUM_CC", "NUM_KIN", "NUM_BUS")
@@ -584,13 +650,16 @@ lm.morantest(resale_mlr, nb_lw)
 
 ### Adaptive Bandwidth Geographic 
 
-```{r}
+```{r eval=FALSE cache=TRUE}
 bw_adaptive <- bw.gwr(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data = resale_prices_res_sp, approach="CV", kernel="gaussian", adaptive=TRUE, longlat=FALSE)
 ```
 
+  - From the above output, we can see that the recommended data points is 55. 
+  - We will then pass this Bandwidth value in generating out Geographic Weighted Regression Model.
+
 Construct the Geographic Weighted Regression Model
 
-```{r}
+```{r eval=FALSE cache=TRUE}
 gwr_adaptive <- gwr.basic(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data=resale_prices_res_sp, bw=bw_adaptive, kernel = 'gaussian', adaptive=TRUE, longlat = FALSE)
 
 gwr_adaptive
@@ -598,6 +667,8 @@ gwr_adaptive
 
 
 ## Visualising GWR Output
+
+In order to better understand the Geographic Weighted Regression Model's output, we will visualise it.
 
 ### Converting SDF into sf dataframe
 
@@ -617,7 +688,7 @@ tm_shape(resale_prices_sf_adaptive) +
   tm_view(set.zoom.limits = c(11,14))
 ```
 
-
+  - From the above plot, we can see that majority of the R-squared are in the 0.6 to 1 region. This means that most of the HDB Resale Prices are explained by the GWR Model. 
 
 
 
