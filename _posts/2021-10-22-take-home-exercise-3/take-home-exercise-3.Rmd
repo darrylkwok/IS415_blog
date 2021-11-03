@@ -563,11 +563,20 @@ ols_regress(resale_mlr)
 
 ## Testing the assumptions of Linear Regression 
 
+In order for us to perform regression on geographical data, we must first make sure that the 4 assumptions are met.
+
+  - The residuals are uncorrelated with each other
+  - The relationship between the dependent variable and independent variables are approximately linear
+  - The residuals are assumed to be normally distributed.
+  - Test for spatial autocorrelation to see if the points are correlated.
+
 ### Multi-Collinearity Test
 
 ```{r}
 ols_vif_tol(resale_mlr)
 ```
+
+  - From the above plot, we can see that since all the VIF values are below 10, there are no sign of multi-collineaity among the independent variables.
 
 ### Non-linearity Test
 
@@ -575,11 +584,15 @@ ols_vif_tol(resale_mlr)
 ols_plot_resid_fit(resale_mlr)
 ```
 
+  - Since majority of the points are scattered close to the red line, we can conclude that the relationships between the dependent variable and the independent variables are linear.
+
 ### Normality Assumption Test
 
 ```{r}
 ols_plot_resid_hist(resale_mlr)
 ```
+
+  - The plot above shows that the distribution of the residuals resemble normal distribution.
 
 ### Spatial Autocorrelation Test
 
@@ -650,7 +663,7 @@ lm.morantest(resale_mlr, nb_lw)
 
 ### Adaptive Bandwidth Geographic 
 
-```{r eval=FALSE cache=TRUE}
+```{r cache=TRUE}
 bw_adaptive <- bw.gwr(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data = resale_prices_res_sp, approach="CV", kernel="gaussian", adaptive=TRUE, longlat=FALSE)
 ```
 
@@ -659,7 +672,7 @@ bw_adaptive <- bw.gwr(formula = resale_price ~ floor_area_sqm + remaining_lease 
 
 Construct the Geographic Weighted Regression Model
 
-```{r eval=FALSE cache=TRUE}
+```{r cache=TRUE}
 gwr_adaptive <- gwr.basic(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data=resale_prices_res_sp, bw=bw_adaptive, kernel = 'gaussian', adaptive=TRUE, longlat = FALSE)
 
 gwr_adaptive
