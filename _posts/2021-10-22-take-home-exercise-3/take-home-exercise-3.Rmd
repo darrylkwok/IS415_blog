@@ -1,7 +1,7 @@
 ---
 title: "Take-Home Exercise 3"
 description: |
-  A short description of the post.
+  In this article, we will build hedonic pricing models to examine the effect of different factors such as proxmity to certain facilities and number of facilities within a certain radius. The hedonic pricing models will be built using Geographical Weighted Regression.
 author:
   - name: Darryl Kwok
     url: https://example.com/darrylkwok
