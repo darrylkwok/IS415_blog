@@ -9,6 +9,9 @@ date: 10-22-2021
 output:
   distill::distill_article:
     self_contained: false
+    toc: true
+    toc_depth: 4
+    code_folding: true
 ---
 
 
@@ -663,7 +666,7 @@ lm.morantest(resale_mlr, nb_lw)
 
 ### Adaptive Bandwidth Geographic 
 
-```{r cache=TRUE}
+```{r}
 bw_adaptive <- bw.gwr(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data = resale_prices_res_sp, approach="CV", kernel="gaussian", adaptive=TRUE, longlat=FALSE)
 ```
 
@@ -672,7 +675,7 @@ bw_adaptive <- bw.gwr(formula = resale_price ~ floor_area_sqm + remaining_lease 
 
 Construct the Geographic Weighted Regression Model
 
-```{r cache=TRUE}
+```{r}
 gwr_adaptive <- gwr.basic(formula = resale_price ~ floor_area_sqm + remaining_lease + PROX_CBD + PROX_ELDER + PROX_HAWKER + PROX_MRTLRT + PROX_PARK + PROX_SPRMRT + NUM_BUS + NUM_CC + NUM_KIN,  data=resale_prices_res_sp, bw=bw_adaptive, kernel = 'gaussian', adaptive=TRUE, longlat = FALSE)
 
 gwr_adaptive
@@ -702,9 +705,6 @@ tm_shape(resale_prices_sf_adaptive) +
 ```
 
   - From the above plot, we can see that majority of the R-squared are in the 0.6 to 1 region. This means that most of the HDB Resale Prices are explained by the GWR Model. 
-
-
-
 
 
 
